@@ -11,13 +11,13 @@
 
 .centerbg:before{
     content: ' ';
-    position: fixed;
+    background-attachment: fixed;
     z-index: -1;
     top: 0;
     right: 0;
     bottom: 0;
     left: 0;
-    background: url(../img/centerbg.jpg) center 0 no-repeat;
+    background-image: url(../img/centerbg.jpg) center 0 no-repeat;
     background-size: cover;
     background-position: 80%;
 }
@@ -27,7 +27,7 @@
     margin:0;
     background-attachment: fixed;
     background-size: cover;
-    
+    background-position: 80%;
 }
 
 .focusinfo {
@@ -36,13 +36,13 @@
     padding: 0 10px;
     top: 49.3%;
     left: 50%;
-    transform: translate(-50%,-50%);
+    /*transform: translate(-50%,-50%);*/
     -webkit-transform: translate(-50%, -50%);
     text-align: center;
     z-index: 99;
-    -webkit-transition: .4s ease all;
-    -moz-transition: .4s ease all;
-    -o-transition: .4s ease all;
+    /*-webkit-transition: .4s ease all;*/
+    /*-moz-transition: .4s ease all;*/
+    /*-o-transition: .4s ease all;*/
     transition: .4s ease all;
 }
 
