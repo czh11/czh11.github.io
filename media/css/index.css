@@ -9,7 +9,7 @@
     padding-top: 65px;
 }
 
-/*.centerbg:before{
+.centerbg:before{
     content: ' ';
     position: fixed;
     z-index: -1;
@@ -19,14 +19,15 @@
     left: 0;
     background: url(../img/centerbg.jpg) center 0 no-repeat;
     background-size: cover;
-}*/
+    background-position: 80%;
+}
 
 .centerbg{
     background-image: url(../img/centerbg.jpg);
     margin:0;
     background-attachment: fixed;
     background-size: cover;
-    background-position: 80%;
+    
 }
 
 .focusinfo {
@@ -35,13 +36,13 @@
     padding: 0 10px;
     top: 49.3%;
     left: 50%;
-    /*transform: translate(-50%,-50%);*/
+    transform: translate(-50%,-50%);
     -webkit-transform: translate(-50%, -50%);
     text-align: center;
     z-index: 99;
-    /*-webkit-transition: .4s ease all;*/
-    /*-moz-transition: .4s ease all;*/
-    /*-o-transition: .4s ease all;*/
+    -webkit-transition: .4s ease all;
+    -moz-transition: .4s ease all;
+    -o-transition: .4s ease all;
     transition: .4s ease all;
 }
 
