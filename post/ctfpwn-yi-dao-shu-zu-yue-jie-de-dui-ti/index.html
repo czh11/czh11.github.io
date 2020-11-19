@@ -56,16 +56,16 @@
                 </header>
                 <div class="neko">
                     <!-- more -->
-<p><img src="https://https://czh11.github.io//post-images/1605793554457.png" alt="" loading="lazy"><br>
+<p><img src="https://czh11.github.io/post-images/1605793554457.png" alt="" loading="lazy"><br>
 没有限制v1的范围，导致数组的下标可以为任意值，造成数组越界。<br>
-<img src="https://https://czh11.github.io//post-images/1605793729793.jpg" alt="" loading="lazy"><br>
+<img src="https://czh11.github.io/post-images/1605793729793.jpg" alt="" loading="lazy"><br>
 没有开启NX，堆栈可执行，所以可以把shellcode写在堆上，堆申请的大小最大为8，所以要把shellcode写在多个堆块上，</p>
-<figure data-type="image" tabindex="1"><img src="https://https://czh11.github.io//post-images/1605793839389.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="1"><img src="https://czh11.github.io/post-images/1605793839389.jpg" alt="" loading="lazy"></figure>
 <p>同时写进去的最后一个字节会被置0，因此正真能写的只有7个字节。</p>
 <p>综上，我们可以申请任意地址的8个字节改为我们申请的堆块的指针，这里修改got表的内容让它跳转到我们shellcode的地址。</p>
 <p>Jmp short xxxx指令占用2字节，这条指令使用的是相对当前指令的下一条指令位置寻址的 。</p>
-<figure data-type="image" tabindex="2"><img src="https://https://czh11.github.io//post-images/1605793857686.jpg" alt="" loading="lazy"></figure>
-<figure data-type="image" tabindex="3"><img src="https://https://czh11.github.io//post-images/1605793900510.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://czh11.github.io/post-images/1605793857686.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://czh11.github.io/post-images/1605793900510.jpg" alt="" loading="lazy"></figure>
 <pre><code>#!/usr/bin/env python2
 #-*- coding:utf-8 -*
 from pwn import *
