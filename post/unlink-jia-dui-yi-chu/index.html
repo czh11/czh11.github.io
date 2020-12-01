@@ -55,8 +55,25 @@
                     <hr>
                 </header>
                 <div class="neko">
-                    <p>攻防世界- Noleak</p>
-<p>查看一下保护</p>
+                    <p>攻防世界- Noleak<br>
+假设地址ptr指向的P<br>
+对于64位的：<br>
+FD-&gt;ptr-0x8<em>3<br>
+BK-&gt;prt-0x8</em>2<br>
+FD-&gt;bk=FD+0x18=ptr-0x18+0x18=ptr<br>
+BK-&gt;fd=BK+0x10=ptr-0x10+0x10=ptr<br>
+FD-&gt;bk=BK<br>
+BK-&gt;fd=PD(p=ptr-0x18)<br>
+最终的结果为p=ptr-0x18<br>
+对于32位的：<br>
+FD-&gt;ptr-0x4<em>3<br>
+BK-&gt;prt-0x4</em>2<br>
+FD-&gt;bk=FD+0xc=ptr-0xc+0xc=ptr<br>
+BK-&gt;fd=BK+0x8=ptr-0x8+0x8=ptr<br>
+FD-&gt;bk=BK<br>
+BK-&gt;fd=PD(p=ptr-0xc)<br>
+最终的结果为p=ptr-0xc<br>
+查看一下保护</p>
 <p>开了FULL RELRO，不能修改got表</p>
 <pre><code>giantbranch@ubuntu:~/Desktop$ checksec timu
 [*] '/home/giantbranch/Desktop/timu'
